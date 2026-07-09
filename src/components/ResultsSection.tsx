@@ -55,7 +55,7 @@ export function ResultsSection({
   const sortBtn = (key: SortKey, label: string, extraClass = '') => (
     <button
       onClick={() => handleSort(key)}
-      className={`text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 ${extraClass}`}
+      className={`truncate whitespace-nowrap text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 sm:text-xs ${extraClass}`}
     >
       {label}
       {sortKey === key ? (asc ? ' ▲' : ' ▼') : ''}
@@ -71,14 +71,14 @@ export function ResultsSection({
         <p className="px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">None within this radius</p>
       ) : (
         <>
-          <div className="grid grid-cols-[2rem_1fr_auto_auto_auto_auto_auto] items-center gap-3 border-b border-slate-100 px-3 py-1.5 dark:border-slate-800">
+          <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_2.75rem_2.25rem_4rem_5rem_1.25rem] items-center gap-1.5 border-b border-slate-100 px-2 py-1.5 dark:border-slate-800 sm:gap-3 sm:px-3">
             <span />
             {sortBtn('name', 'Name')}
-            {sortBtn('distance', 'Distance', 'w-16 text-right')}
-            {sortBtn('beds', 'Beds', 'w-14 text-right')}
-            {sortBtn('occupancy', 'Occupancy', 'w-28 text-right')}
-            {sortBtn('rating', 'Rating', 'w-24 text-right')}
-            <span className="w-6" />
+            {sortBtn('distance', 'Dist.', 'text-right')}
+            {sortBtn('beds', 'Beds', 'text-right')}
+            {sortBtn('occupancy', 'Occ.', 'text-right')}
+            {sortBtn('rating', 'Rating', 'text-right')}
+            <span />
           </div>
           <div>
             {sorted.map(({ facility, distanceMiles }) => (
