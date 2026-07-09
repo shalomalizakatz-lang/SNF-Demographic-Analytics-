@@ -35,7 +35,7 @@ export function ExportBar({ items, anchorName }: { items: FacilityWithDistance<F
         {copied ? 'Copied!' : 'Copy as table'}
       </button>
       <button
-        onClick={() => downloadCsv(`${anchorName.replace(/[^a-z0-9]+/gi, '-')}-market-radius.csv`, rowsToCsv(HEADERS, toRows(items)))}
+        onClick={() => downloadCsv(`${anchorName.replace(/[^a-z0-9]+/gi, '-')}-scoutsnf.csv`, rowsToCsv(HEADERS, toRows(items)))}
         className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
       >
         Download CSV

@@ -33,7 +33,7 @@ class MarketRadiusDb extends Dexie {
   saved!: Table<SavedFacilityRow, string>
 
   constructor() {
-    super('market-radius')
+    super('scoutsnf')
     this.version(1).stores({
       snf: 'ccn, state',
       hospitals: 'ccn, state',

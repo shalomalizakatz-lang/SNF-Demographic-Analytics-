@@ -25,7 +25,7 @@ export function SearchBar({
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
         placeholder="Search a facility by name or city…"
-        className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base shadow-sm focus:border-anchor focus:outline-none dark:border-slate-700 dark:bg-slate-900"
+        className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-base shadow-sm focus:border-brand focus:outline-none dark:border-slate-700 dark:bg-slate-900"
       />
       {focused && hits.length > 0 && (
         <ul className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">

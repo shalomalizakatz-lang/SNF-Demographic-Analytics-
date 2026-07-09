@@ -5,7 +5,7 @@ import type { FacilityRecord, FacilityWithDistance } from '../types/facility'
 const ICONS: Record<'anchor' | 'snf' | 'hospital', L.DivIcon> = {
   anchor: L.divIcon({
     className: '',
-    html: '<div style="width:16px;height:16px;border-radius:50%;background:#7c3aed;border:2px solid white;box-shadow:0 0 0 2px #7c3aed"></div>',
+    html: '<div style="width:16px;height:16px;border-radius:50%;background:#0f4c5c;border:2px solid white;box-shadow:0 0 0 2px #0f4c5c"></div>',
     iconSize: [16, 16],
     iconAnchor: [8, 8]
   }),
@@ -66,7 +66,7 @@ export function MapView({
     const radiusMeters = radiusMiles * 1609.34
     L.circle([anchor.latitude, anchor.longitude], {
       radius: radiusMeters,
-      color: '#7c3aed',
+      color: '#0f4c5c',
       fillOpacity: 0.05,
       weight: 1
     }).addTo(layer)
@@ -80,7 +80,7 @@ export function MapView({
       popupDiv.innerHTML = `<strong>${facility.name}</strong><br/>${distanceMiles.toFixed(1)} mi · ${facility.kind === 'snf' ? 'SNF' : 'Hospital'}<br/>`
       const btn = document.createElement('button')
       btn.textContent = 'View details'
-      btn.style.cssText = 'color:#7c3aed;text-decoration:underline;font-size:12px;background:none;border:none;padding:0;cursor:pointer'
+      btn.style.cssText = 'color:#0f4c5c;text-decoration:underline;font-size:12px;background:none;border:none;padding:0;cursor:pointer'
       btn.onclick = () => onSelect(facility)
       popupDiv.appendChild(btn)
       marker.bindPopup(popupDiv)

@@ -160,7 +160,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3 p-6 text-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-anchor border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-brand border-t-transparent" />
         <p className="text-sm text-slate-500 dark:text-slate-400">{loadStage}</p>
       </div>
     )
@@ -171,7 +171,7 @@ export default function App() {
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur dark:border-slate-800 dark:bg-slate-950/90">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg font-bold">Market Radius</span>
+            <span className="text-lg font-bold">ScoutSNF</span>
             <nav className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-sm dark:bg-slate-800">
               <button
                 onClick={() => setView('board')}
@@ -300,7 +300,7 @@ export default function App() {
                           }
                           className={`rounded-full border px-2.5 py-1 text-xs ${
                             active
-                              ? 'border-anchor bg-anchor/10 text-anchor'
+                              ? 'border-brand bg-brand/10 text-brand'
                               : 'border-slate-300 text-slate-400 dark:border-slate-700'
                           }`}
                         >

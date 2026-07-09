@@ -64,7 +64,7 @@ export function DealBoard({
           >
             Export CSV
           </button>
-          <button onClick={onGoToSearch} className="rounded-lg bg-anchor px-3 py-1.5 text-sm text-white hover:opacity-90">
+          <button onClick={onGoToSearch} className="rounded-lg bg-brand px-3 py-1.5 text-sm text-white hover:opacity-90">
             + New search
           </button>
         </div>

@@ -18,7 +18,7 @@ export function AnchorCard({
   const occupancy = getOccupancyDisplay(facility)
 
   return (
-    <div className="rounded-xl border-2 border-anchor/40 bg-white p-4 shadow-sm dark:bg-slate-900">
+    <div className="rounded-xl border-2 border-brand/40 bg-white p-4 shadow-sm dark:bg-slate-900">
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-2">
@@ -36,7 +36,7 @@ export function AnchorCard({
         </div>
         <button
           onClick={onToggleSave}
-          className={`text-2xl ${saved ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400'}`}
+          className={`text-2xl ${saved ? 'text-gold' : 'text-slate-300 hover:text-gold'}`}
           title={saved ? 'Remove from Deal Board' : 'Save to Deal Board'}
         >
           {saved ? '★' : '☆'}

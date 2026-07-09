@@ -9,11 +9,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'Market Radius — SNF Market Analysis',
-        short_name: 'Market Radius',
+        name: 'ScoutSNF — SNF Market Analysis',
+        short_name: 'ScoutSNF',
         description: 'Radius-based competitive market analysis for skilled nursing facility acquisitions',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#0f4c5c',
+        background_color: '#0f4c5c',
         display: 'standalone',
         start_url: '/',
         icons: [

@@ -25,9 +25,16 @@ export function FacilityRow({
   return (
     <div ref={ref} className="border-b border-slate-200 dark:border-slate-800">
       <button
-        className="grid w-full grid-cols-[1fr_auto_auto_auto_auto_auto] items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-900"
+        className="grid w-full grid-cols-[2rem_1fr_auto_auto_auto_auto_auto] items-center gap-3 px-3 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-900"
         onClick={() => setExpanded((v) => !v)}
       >
+        <span className="h-8 w-8 shrink-0 overflow-hidden rounded-md bg-slate-200 dark:bg-slate-800">
+          {info?.photoUrl ? (
+            <img src={info.photoUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <PlaceholderImage kind={facility.kind} className="h-full w-full" />
+          )}
+        </span>
         <span className="flex min-w-0 flex-col">
           <span className="flex items-center gap-2">
             <span className="truncate font-medium">{facility.name}</span>
@@ -58,7 +65,7 @@ export function FacilityRow({
             e.stopPropagation()
             onToggleSave()
           }}
-          className={`px-1 text-lg ${saved ? 'text-amber-500' : 'text-slate-300 hover:text-amber-400 dark:text-slate-600'}`}
+          className={`px-1 text-lg ${saved ? 'text-gold' : 'text-slate-300 hover:text-gold dark:text-slate-600'}`}
           title={saved ? 'Remove from Deal Board' : 'Save to Deal Board'}
         >
           {saved ? '★' : '☆'}

@@ -1,4 +1,4 @@
-# Market Radius — SNF Market Analysis PWA
+# ScoutSNF — SNF Market Analysis PWA
 
 A client-only Progressive Web App for skilled nursing facility (SNF) acquisition
 analysis. Search any U.S. nursing facility (the "anchor") and see every SNF and
@@ -51,3 +51,16 @@ CMS stopped requiring facility-level hospital capacity reporting in May 2024.
 Every hospital occupancy value shown in this app displays its source week
 inline (e.g. "78% (wk of 4/21/24)") and is styled as historical data — it is
 not a live number.
+
+## Brand
+
+"Cross-cutout compass pin" mark — a location pin with a medical cross knocked
+out of it and a gold compass needle through the center. Palette: `#0f4c5c`
+(scout teal, primary/UI accent), `#e9c46a` (scout gold, ratings + saved-facility
+accent), white. Source SVGs live in `public/brand/`:
+
+- `icon.svg` — primary mark (with needle), 32px and up
+- `icon-small.svg` — pin + cross only, used below 32px (`favicon.svg` is this variant)
+- `icon-mono.svg` — single-color cutout via `fill-rule="evenodd"`, for print/letterhead use
+
+`public/pwa-192x192.png` / `pwa-512x512.png` are rasterized from the primary mark.

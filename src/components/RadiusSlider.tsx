@@ -27,7 +27,7 @@ export function RadiusSlider({
         step={1}
         value={idx === -1 ? 0 : idx}
         onChange={(e) => onChange(STEPS[Number(e.target.value)])}
-        className="w-full accent-anchor"
+        className="w-full accent-brand"
       />
       <div className="flex justify-between text-[10px] text-slate-400 dark:text-slate-500">
         {STEPS.map((s) => (
