@@ -51,6 +51,7 @@ export default function App() {
   const [radiusMiles, setRadiusMiles] = useState(10)
   const [tab, setTab] = useState<'list' | 'map'>('list')
   const [facilityTab, setFacilityTab] = useState<'snf' | 'hospital'>('snf')
+  const [mapFilter, setMapFilter] = useState<'all' | 'snf' | 'hospital'>('all')
   const [hospitalTypeFilter, setHospitalTypeFilter] = useState<Set<HospitalType>>(new Set(HOSPITAL_TYPES))
   const [occupancyByPk, setOccupancyByPk] = useState<Map<string, { occupancyPct: number | null; asOfWeek: string | null }>>(
     new Map()
@@ -132,6 +133,12 @@ export default function App() {
       setOccupancyByPk(obj)
     })
   }, [hospitalResultsAll])
+
+  const mapResults = useMemo(() => {
+    if (mapFilter === 'snf') return snfResults
+    if (mapFilter === 'hospital') return hospitalResults
+    return [...snfResults, ...hospitalResults]
+  }, [mapFilter, snfResults, hospitalResults])
 
   const snapshot = useMemo(() => marketSnapshotLine(snfResults, radiusMiles), [snfResults, radiusMiles])
   const savedIds = useMemo(() => new Set(saved.map((s) => s.id)), [saved])
@@ -270,9 +277,60 @@ export default function App() {
 
               {tab === 'map' ? (
                 anchor.latitude != null && anchor.longitude != null ? (
-                  <div className="h-[500px]">
-                    <MapView anchor={anchor} radiusMiles={radiusMiles} results={[...snfResults, ...hospitalResults]} onSelect={setAnchor} />
-                  </div>
+                  <>
+                    <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-sm dark:bg-slate-800">
+                      <button
+                        onClick={() => setMapFilter('all')}
+                        className={`flex-1 rounded-md px-3 py-1.5 ${mapFilter === 'all' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
+                      >
+                        Both ({snfResults.length + hospitalResults.length})
+                      </button>
+                      <button
+                        onClick={() => setMapFilter('snf')}
+                        className={`flex-1 rounded-md px-3 py-1.5 ${mapFilter === 'snf' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
+                      >
+                        SNFs ({snfResults.length})
+                      </button>
+                      <button
+                        onClick={() => setMapFilter('hospital')}
+                        className={`flex-1 rounded-md px-3 py-1.5 ${mapFilter === 'hospital' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
+                      >
+                        Hospitals ({hospitalResults.length})
+                      </button>
+                    </div>
+
+                    {mapFilter !== 'snf' && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {HOSPITAL_TYPES.map((t) => {
+                          const active = hospitalTypeFilter.has(t)
+                          return (
+                            <button
+                              key={t}
+                              onClick={() =>
+                                setHospitalTypeFilter((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(t)) next.delete(t)
+                                  else next.add(t)
+                                  return next
+                                })
+                              }
+                              className={`rounded-full border px-2.5 py-1 text-xs ${
+                                active
+                                  ? 'border-brand bg-brand/10 text-brand'
+                                  : 'border-slate-300 text-slate-400 dark:border-slate-700'
+                              }`}
+                            >
+                              {t}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <div className="h-[500px]">
+                      <MapView anchor={anchor} radiusMiles={radiusMiles} results={mapResults} onSelect={setAnchor} />
+                    </div>
+                  </>
                 ) : (
                   <p className="text-sm text-slate-500">Anchor location unavailable — map view needs coordinates.</p>
                 )
