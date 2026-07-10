@@ -11,7 +11,7 @@ function toRows(items: FacilityWithDistance<FacilityRecord>[]): CsvRow[] {
     Type: facility.kind === 'snf' ? 'SNF' : facility.hospitalType,
     City: facility.city,
     State: facility.state,
-    'Distance (mi)': distanceMiles.toFixed(1),
+    'Distance (mi)': distanceMiles.toFixed(2),
     Beds: getBedsDisplay(facility),
     Occupancy: getOccupancyDisplay(facility).text,
     Rating: facility.overallRating ?? '',

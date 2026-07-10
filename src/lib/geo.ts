@@ -18,5 +18,5 @@ export function haversineMiles(
 }
 
 export function roundMile(miles: number): number {
-  return Math.round(miles * 10) / 10
+  return Math.round(miles * 100) / 100
 }

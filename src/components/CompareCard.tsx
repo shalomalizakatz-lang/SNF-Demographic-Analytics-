@@ -98,7 +98,7 @@ export function CompareCard({
         <div className="w-px shrink-0 bg-slate-200 dark:bg-slate-700" />
         <Column
           facility={facility}
-          distanceLabel={`${distanceMiles.toFixed(1)} mi from anchor`}
+          distanceLabel={`${distanceMiles.toFixed(2)} mi from anchor`}
           saved={savedIds.has(`${facility.kind}:${facility.ccn}`)}
           onToggleSave={() => onToggleSave(facility)}
         />

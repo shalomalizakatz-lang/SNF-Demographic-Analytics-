@@ -338,6 +338,7 @@ export default function App() {
                         anchor={anchor}
                         radiusMiles={radiusMiles}
                         results={mapResults}
+                        highlight={compareFacility?.facility}
                         onSelect={(facility, distanceMiles) => setCompareFacility({ facility, distanceMiles })}
                       />
                     </div>
