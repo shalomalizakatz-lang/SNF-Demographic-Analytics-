@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FacilityRecord, HospitalType, SnfRecord, HospitalRecord } from './types/facility'
-import { loadSnfData, loadHospitalData } from './data/dataset'
+import { loadSnfData, loadHospitalData, recheckSnfCoordinates } from './data/dataset'
 import { loadOccupancyForStates } from './data/occupancy'
 import {
   listSavedFacilities,
@@ -83,6 +83,12 @@ export default function App() {
     if (hospitalResult.error) setErrors((e) => [...e, hospitalResult.error!])
 
     setLoading(false)
+  }
+
+  async function recheckCoordinates(onProgress?: (done: number, total: number) => void) {
+    const { records, checkedCount } = await recheckSnfCoordinates(onProgress)
+    setSnfs(records)
+    return checkedCount
   }
 
   useEffect(() => {
@@ -208,6 +214,7 @@ export default function App() {
             snfFetchedAt={snfFetchedAt}
             hospitalFetchedAt={hospitalFetchedAt}
             onRefresh={() => void loadAll(true)}
+            onRecheckCoordinates={recheckCoordinates}
           />
         </div>
         {errors.length > 0 && (

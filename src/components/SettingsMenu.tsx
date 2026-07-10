@@ -3,14 +3,19 @@ import { useEffect, useRef, useState } from 'react'
 export function SettingsMenu({
   snfFetchedAt,
   hospitalFetchedAt,
-  onRefresh
+  onRefresh,
+  onRecheckCoordinates
 }: {
   snfFetchedAt: string
   hospitalFetchedAt: string
   onRefresh: () => void
+  onRecheckCoordinates: (onProgress?: (done: number, total: number) => void) => Promise<number>
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
+  const [recheckStatus, setRecheckStatus] = useState<'idle' | 'running' | 'done'>('idle')
+  const [recheckProgress, setRecheckProgress] = useState<{ done: number; total: number } | null>(null)
+  const [recheckCount, setRecheckCount] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -29,6 +34,14 @@ export function SettingsMenu({
       onRefresh()
       setOpen(false)
     }
+  }
+
+  async function handleRecheckClick() {
+    setRecheckStatus('running')
+    setRecheckProgress(null)
+    const count = await onRecheckCoordinates((done, total) => setRecheckProgress({ done, total }))
+    setRecheckCount(count)
+    setRecheckStatus('done')
   }
 
   return (
@@ -61,6 +74,25 @@ export function SettingsMenu({
           <p className="mt-1.5 text-[10px] text-slate-400">
             Re-fetches everything from CMS/Census. Can take several minutes.
           </p>
+
+          <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
+            <button
+              onClick={handleRecheckClick}
+              disabled={recheckStatus === 'running'}
+              className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-left text-xs hover:bg-slate-100 disabled:opacity-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              {recheckStatus === 'running' ? 'Checking…' : 'Re-check facility locations'}
+            </button>
+            <p className="mt-1.5 text-[10px] text-slate-400">
+              {recheckStatus === 'running' && recheckProgress
+                ? `Verifying ${recheckProgress.done}/${recheckProgress.total} facilities that share a location with another…`
+                : recheckStatus === 'done'
+                  ? recheckCount === 0
+                    ? 'No duplicate locations found.'
+                    : `Re-verified ${recheckCount} facilit${recheckCount === 1 ? 'y' : 'ies'} that shared a location with another.`
+                  : 'Fast, targeted fix for a known CMS data quirk (some facilities share a location with another). Only re-checks the ones affected — no full refresh needed.'}
+            </p>
+          </div>
         </div>
       )}
     </div>

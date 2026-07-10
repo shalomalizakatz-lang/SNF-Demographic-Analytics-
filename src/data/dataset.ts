@@ -41,12 +41,13 @@ function findCoordinateCollisions(records: SnfRecord[]): SnfRecord[] {
   return collided
 }
 
+/** Mutates any colliding records in place with corrected coordinates. Returns how many were found. */
 async function fixCoordinateCollisions(
   records: SnfRecord[],
   onProgress?: (done: number, total: number) => void
-): Promise<void> {
+): Promise<number> {
   const collided = findCoordinateCollisions(records)
-  if (collided.length === 0) return
+  if (collided.length === 0) return 0
 
   const inputs: GeocodeInput[] = collided.map((r) => ({
     id: r.ccn,
@@ -70,6 +71,27 @@ async function fixCoordinateCollisions(
       r.longitude = geo.longitude
     }
   }
+  return collided.length
+}
+
+/**
+ * Lightweight alternative to a full loadSnfData(forceRefresh=true): re-checks the
+ * already-cached SNF roster for coordinate collisions without re-downloading the
+ * roster itself, and only makes network calls for the facilities that actually
+ * collide. Persists corrections back to the cache.
+ */
+export async function recheckSnfCoordinates(
+  onProgress?: (done: number, total: number) => void
+): Promise<{ records: SnfRecord[]; checkedCount: number }> {
+  const cached = await db.snf.toArray()
+  const checkedCount = await fixCoordinateCollisions(cached, onProgress)
+  if (checkedCount > 0) {
+    await db.transaction('rw', db.snf, async () => {
+      await db.snf.clear()
+      await db.snf.bulkPut(cached)
+    })
+  }
+  return { records: cached, checkedCount }
 }
 
 export async function loadSnfData(
