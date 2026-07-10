@@ -1,4 +1,5 @@
 import { db } from './db'
+import { lookupWikipediaPhoto } from './wikipedia'
 
 const PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY as string | undefined
 
@@ -28,18 +29,8 @@ function loadPlacesSdk(): Promise<typeof google | null> {
   return sdkLoadPromise
 }
 
-/** Looks up a website + cover photo via Places JS SDK. Non-blocking, cached in IndexedDB by CCN. */
-export async function lookupPlaceInfo(
-  ccn: string,
-  name: string,
-  city: string,
-  state: string
-): Promise<PlaceInfo | null> {
-  if (!PLACES_KEY) return null
-
-  const cached = await db.places.get(ccn)
-  if (cached) return { website: cached.website, photoUrl: cached.photoUrl }
-
+/** Website + real cover photo via the paid Google Places API — only attempted if a key is configured. */
+async function lookupViaGooglePlaces(name: string, city: string, state: string): Promise<PlaceInfo | null> {
   const g = await loadPlacesSdk()
   if (!g?.maps?.places) return null
 
@@ -58,14 +49,42 @@ export async function lookupPlaceInfo(
             resolve(null)
             return
           }
-          const website = place.website ?? null
-          const photoUrl = place.photos?.[0]?.getUrl({ maxWidth: 480 }) ?? null
-          void db.places.put({ ccn, website, photoUrl, fetchedAt: new Date().toISOString() })
-          resolve({ website, photoUrl })
+          resolve({
+            website: place.website ?? null,
+            photoUrl: place.photos?.[0]?.getUrl({ maxWidth: 480 }) ?? null
+          })
         }
       )
     })
   })
+}
+
+/**
+ * Looks up a cover photo (and website, if the optional paid Google Places key is
+ * configured) for a facility. Cached in IndexedDB by CCN so each facility is only
+ * ever looked up once per browser. Prefers Google Places (real facility photo)
+ * when available, otherwise tries Wikipedia (free, no key) before giving up.
+ */
+export async function lookupPlaceInfo(
+  ccn: string,
+  name: string,
+  city: string,
+  state: string
+): Promise<PlaceInfo | null> {
+  const cached = await db.places.get(ccn)
+  if (cached) return { website: cached.website, photoUrl: cached.photoUrl }
+
+  let result: PlaceInfo | null = null
+  if (PLACES_KEY) {
+    result = await lookupViaGooglePlaces(name, city, state)
+  }
+  if (!result?.photoUrl) {
+    const wikiPhoto = await lookupWikipediaPhoto(name, city, state)
+    result = { website: result?.website ?? null, photoUrl: wikiPhoto }
+  }
+
+  await db.places.put({ ccn, website: result.website, photoUrl: result.photoUrl, fetchedAt: new Date().toISOString() })
+  return result
 }
 
 export const placesEnabled = Boolean(PLACES_KEY)
