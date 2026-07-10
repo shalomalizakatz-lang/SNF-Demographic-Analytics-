@@ -49,7 +49,7 @@ export function FacilityRow({
           </span>
           <span className="truncate text-xs text-slate-500 dark:text-slate-400">{facility.city}, {facility.state}</span>
         </span>
-        <span className="text-right text-xs tabular-nums sm:text-sm">{distanceMiles.toFixed(1)} mi</span>
+        <span className="text-right text-xs tabular-nums sm:text-sm">{distanceMiles.toFixed(2)} mi</span>
         <span className="text-right text-xs tabular-nums sm:text-sm">{getBedsDisplay(facility)}</span>
         <span className="flex flex-col items-end">
           <span className="text-xs tabular-nums sm:text-sm">{occupancy.text}</span>

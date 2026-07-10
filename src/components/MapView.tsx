@@ -2,24 +2,22 @@ import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import type { FacilityRecord, FacilityWithDistance } from '../types/facility'
 
-const ICONS: Record<'anchor' | 'snf' | 'hospital', L.DivIcon> = {
-  anchor: L.divIcon({
+const COLORS = {
+  anchor: '#0f4c5c',
+  snf: '#0ea5e9',
+  hospital: '#ef4444',
+  highlightRing: '#e9c46a'
+}
+
+/** Selected/compared pins get a larger gold ring so the compared pair stands out from the rest. */
+function dotIcon(color: string, baseSize: number, highlighted: boolean): L.DivIcon {
+  const size = highlighted ? baseSize + 4 : baseSize
+  const ring = highlighted ? `box-shadow:0 0 0 3px ${COLORS.highlightRing}, 0 0 0 5px white;` : ''
+  return L.divIcon({
     className: '',
-    html: '<div style="width:16px;height:16px;border-radius:50%;background:#0f4c5c;border:2px solid white;box-shadow:0 0 0 2px #0f4c5c"></div>',
-    iconSize: [16, 16],
-    iconAnchor: [8, 8]
-  }),
-  snf: L.divIcon({
-    className: '',
-    html: '<div style="width:12px;height:12px;border-radius:50%;background:#0ea5e9;border:2px solid white"></div>',
-    iconSize: [12, 12],
-    iconAnchor: [6, 6]
-  }),
-  hospital: L.divIcon({
-    className: '',
-    html: '<div style="width:12px;height:12px;border-radius:50%;background:#ef4444;border:2px solid white"></div>',
-    iconSize: [12, 12],
-    iconAnchor: [6, 6]
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2px solid white;${ring}"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
   })
 }
 
@@ -27,11 +25,13 @@ export function MapView({
   anchor,
   radiusMiles,
   results,
+  highlight,
   onSelect
 }: {
   anchor: FacilityRecord
   radiusMiles: number
   results: FacilityWithDistance<FacilityRecord>[]
+  highlight?: FacilityRecord | null
   onSelect: (facility: FacilityRecord, distanceMiles: number) => void
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -59,7 +59,19 @@ export function MapView({
     if (!map || !layer || anchor.latitude == null || anchor.longitude == null) return
     layer.clearLayers()
 
-    L.marker([anchor.latitude, anchor.longitude], { icon: ICONS.anchor })
+    const isComparing = highlight != null && highlight.latitude != null && highlight.longitude != null
+
+    if (isComparing) {
+      L.polyline(
+        [
+          [anchor.latitude, anchor.longitude],
+          [highlight!.latitude!, highlight!.longitude!]
+        ],
+        { color: COLORS.highlightRing, weight: 2, dashArray: '6 4' }
+      ).addTo(layer)
+    }
+
+    L.marker([anchor.latitude, anchor.longitude], { icon: dotIcon(COLORS.anchor, 16, isComparing) })
       .bindPopup(`<strong>${anchor.name}</strong><br/>Anchor`)
       .addTo(layer)
 
@@ -73,12 +85,14 @@ export function MapView({
 
     for (const { facility, distanceMiles } of results) {
       if (facility.latitude == null || facility.longitude == null) continue
+      const isHighlighted = highlight != null && highlight.kind === facility.kind && highlight.ccn === facility.ccn
       const marker = L.marker([facility.latitude, facility.longitude], {
-        icon: ICONS[facility.kind]
+        icon: dotIcon(COLORS[facility.kind], 12, isHighlighted),
+        zIndexOffset: isHighlighted ? 1000 : 0
       }).addTo(layer)
       const typeLabel = facility.kind === 'hospital' ? facility.hospitalType : ''
       const popupDiv = document.createElement('div')
-      popupDiv.innerHTML = `<strong>${facility.name}</strong><br/>${distanceMiles.toFixed(1)} mi${typeLabel ? ' · ' + typeLabel : ''}<br/>`
+      popupDiv.innerHTML = `<strong>${facility.name}</strong><br/>${distanceMiles.toFixed(2)} mi${typeLabel ? ' · ' + typeLabel : ''}<br/>`
       const btn = document.createElement('button')
       btn.textContent = 'View details'
       btn.style.cssText = 'color:#0f4c5c;text-decoration:underline;font-size:12px;background:none;border:none;padding:0;cursor:pointer'
@@ -88,7 +102,7 @@ export function MapView({
     }
 
     map.setView([anchor.latitude, anchor.longitude], radiusMiles <= 15 ? 11 : radiusMiles <= 25 ? 10 : 9)
-  }, [anchor, radiusMiles, results, onSelect])
+  }, [anchor, radiusMiles, results, highlight, onSelect])
 
   return <div ref={containerRef} className="h-full min-h-[400px] w-full rounded-xl" />
 }
