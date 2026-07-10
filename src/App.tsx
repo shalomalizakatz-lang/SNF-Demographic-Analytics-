@@ -49,6 +49,7 @@ export default function App() {
   const [anchor, setAnchor] = useState<FacilityRecord | null>(null)
   const [radiusMiles, setRadiusMiles] = useState(10)
   const [tab, setTab] = useState<'list' | 'map'>('list')
+  const [facilityTab, setFacilityTab] = useState<'snf' | 'hospital'>('snf')
   const [hospitalTypeFilter, setHospitalTypeFilter] = useState<Set<HospitalType>>(new Set(HOSPITAL_TYPES))
   const [occupancyByPk, setOccupancyByPk] = useState<Map<string, { occupancyPct: number | null; asOfWeek: string | null }>>(
     new Map()
@@ -277,48 +278,67 @@ export default function App() {
                 )
               ) : (
                 <>
-                  <ResultsSection
-                    title="Skilled Nursing Facilities"
-                    items={snfResults}
-                    savedIds={savedIds}
-                    onToggleSave={toggleSave}
-                  />
-
-                  <div className="flex flex-wrap gap-1.5">
-                    {HOSPITAL_TYPES.map((t) => {
-                      const active = hospitalTypeFilter.has(t)
-                      return (
-                        <button
-                          key={t}
-                          onClick={() =>
-                            setHospitalTypeFilter((prev) => {
-                              const next = new Set(prev)
-                              if (next.has(t)) next.delete(t)
-                              else next.add(t)
-                              return next
-                            })
-                          }
-                          className={`rounded-full border px-2.5 py-1 text-xs ${
-                            active
-                              ? 'border-brand bg-brand/10 text-brand'
-                              : 'border-slate-300 text-slate-400 dark:border-slate-700'
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      )
-                    })}
+                  <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-sm dark:bg-slate-800">
+                    <button
+                      onClick={() => setFacilityTab('snf')}
+                      className={`flex-1 rounded-md px-3 py-1.5 ${facilityTab === 'snf' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
+                    >
+                      Skilled Nursing Facilities ({snfResults.length})
+                    </button>
+                    <button
+                      onClick={() => setFacilityTab('hospital')}
+                      className={`flex-1 rounded-md px-3 py-1.5 ${facilityTab === 'hospital' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
+                    >
+                      Hospitals ({hospitalResults.length})
+                    </button>
                   </div>
 
-                  <ResultsSection
-                    title="Hospitals"
-                    items={hospitalResults}
-                    savedIds={savedIds}
-                    onToggleSave={toggleSave}
-                  />
-                  <p className="text-[11px] text-slate-400">
-                    Facility-level hospital occupancy is no longer publicly reported; values shown are the last federally reported week.
-                  </p>
+                  {facilityTab === 'snf' ? (
+                    <ResultsSection
+                      title="Skilled Nursing Facilities"
+                      items={snfResults}
+                      savedIds={savedIds}
+                      onToggleSave={toggleSave}
+                    />
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap gap-1.5">
+                        {HOSPITAL_TYPES.map((t) => {
+                          const active = hospitalTypeFilter.has(t)
+                          return (
+                            <button
+                              key={t}
+                              onClick={() =>
+                                setHospitalTypeFilter((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(t)) next.delete(t)
+                                  else next.add(t)
+                                  return next
+                                })
+                              }
+                              className={`rounded-full border px-2.5 py-1 text-xs ${
+                                active
+                                  ? 'border-brand bg-brand/10 text-brand'
+                                  : 'border-slate-300 text-slate-400 dark:border-slate-700'
+                              }`}
+                            >
+                              {t}
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <ResultsSection
+                        title="Hospitals"
+                        items={hospitalResults}
+                        savedIds={savedIds}
+                        onToggleSave={toggleSave}
+                      />
+                      <p className="text-[11px] text-slate-400">
+                        Facility-level hospital occupancy is no longer publicly reported; values shown are the last federally reported week.
+                      </p>
+                    </>
+                  )}
                 </>
               )}
             </>
