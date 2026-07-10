@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { lookupPlaceInfo, placesEnabled, type PlaceInfo } from '../data/places'
+import { lookupPlaceInfo, type PlaceInfo } from '../data/places'
 
-/** Fetches Places website/photo only once the element scrolls into view. No-op if no API key configured. */
+/** Fetches a cover photo (+ website, if configured) only once the element scrolls into view. */
 export function useLazyPlaceInfo(ccn: string, name: string, city: string, state: string) {
   const ref = useRef<HTMLDivElement | null>(null)
   const [info, setInfo] = useState<PlaceInfo | null>(null)
 
   useEffect(() => {
-    if (!placesEnabled || !ref.current) return
+    if (!ref.current) return
     let cancelled = false
     const el = ref.current
     const observer = new IntersectionObserver(

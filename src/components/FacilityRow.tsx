@@ -32,7 +32,7 @@ export function FacilityRow({
           {info?.photoUrl ? (
             <img src={info.photoUrl} alt="" className="h-full w-full object-cover" />
           ) : (
-            <PlaceholderImage kind={facility.kind} className="h-full w-full" />
+            <PlaceholderImage name={facility.name} className="h-full w-full" />
           )}
         </span>
         <span className="flex min-w-0 flex-col">
@@ -80,7 +80,7 @@ export function FacilityRow({
             {info?.photoUrl ? (
               <img src={info.photoUrl} alt={facility.name} className="h-full w-full object-cover" />
             ) : (
-              <PlaceholderImage kind={facility.kind} className="h-full w-full" />
+              <PlaceholderImage name={facility.name} className="h-full w-full" />
             )}
           </div>
           <div className="min-w-0 flex-1 text-sm">
