@@ -33,3 +33,16 @@ jobs:
           echo "=== title tag and first 2000 chars of body for sanity ==="
           grep -oE '<title>[^<]*</title>' page.html || echo "(no title found)"
           sed -n '1,50p' page.html
+
+          echo ""
+          echo "############ SUB-PAGE: snf-2010-fy-2025-data-files ############"
+          curl -sSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
+            "https://www.cms.gov/data-research/statistics-trends-and-reports/cost-reports/cost-reports-fiscal-year/snf-2010-fy-2025-data-files" \
+            -o subpage.html -w "HTTP %{http_code}\n"
+          wc -c subpage.html
+          echo "--- all href targets on subpage ---"
+          grep -oE 'href="[^"]*"' subpage.html | sort -u
+          echo "--- zip mentions with context ---"
+          grep -ino '.\{60\}zip.\{60\}' subpage.html || echo "(none)"
+          echo "--- title ---"
+          grep -oE '<title>[^<]*</title>' subpage.html
