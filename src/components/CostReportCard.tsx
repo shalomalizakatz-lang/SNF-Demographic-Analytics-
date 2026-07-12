@@ -101,21 +101,23 @@ function PayerSegment({
   color,
   label,
   pct,
-  roundedClass
+  roundedClass,
+  pinned,
+  onToggle
 }: {
   widthPct: number
   color: string
   label: string
   pct: number
   roundedClass: string
+  pinned: boolean
+  onToggle: () => void
 }) {
-  const [pinned, setPinned] = useState(false)
-
   return (
     <div
       className={`group relative h-full cursor-pointer ${roundedClass}`}
       style={{ width: `${widthPct}%`, background: color }}
-      onClick={() => setPinned((p) => !p)}
+      onClick={onToggle}
       aria-label={`${label} ${pct}%`}
     >
       <div
@@ -131,6 +133,8 @@ function PayerSegment({
 
 function PayerMixTrend({ records }: { records: FacilityYearRecord[] }) {
   const usable = records.filter((r) => r.medicarePct != null && r.medicaidPct != null && r.otherPct != null)
+  // Only one segment's tap-to-pin tooltip may be open at a time -- tapping another closes it.
+  const [pinnedId, setPinnedId] = useState<string | null>(null)
   if (usable.length === 0) return null
 
   return (
@@ -150,16 +154,21 @@ function PayerMixTrend({ records }: { records: FacilityYearRecord[] }) {
           return (
             <div key={r.fyBeginDate} className="flex flex-1 flex-col gap-1">
               <div className="flex h-4">
-                {segments.map((s, i) => (
-                  <PayerSegment
-                    key={s.label}
-                    widthPct={s.pct}
-                    color={s.color}
-                    label={s.label}
-                    pct={s.pct}
-                    roundedClass={`${i === 0 ? 'rounded-l' : ''} ${i === segments.length - 1 ? 'rounded-r' : ''}`}
-                  />
-                ))}
+                {segments.map((s, i) => {
+                  const id = `${r.fyBeginDate}-${s.label}`
+                  return (
+                    <PayerSegment
+                      key={s.label}
+                      widthPct={s.pct}
+                      color={s.color}
+                      label={s.label}
+                      pct={s.pct}
+                      roundedClass={`${i === 0 ? 'rounded-l' : ''} ${i === segments.length - 1 ? 'rounded-r' : ''}`}
+                      pinned={pinnedId === id}
+                      onToggle={() => setPinnedId((current) => (current === id ? null : id))}
+                    />
+                  )
+                })}
               </div>
               <span className="text-center text-[9px] tabular-nums text-slate-400">{fyShort(r.fyBeginDate)}</span>
             </div>
