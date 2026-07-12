@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { PortfolioReportData } from '../lib/portfolioReport'
-import type { FacilityRecord, Portfolio } from '../types/facility'
+import type { FacilityRecord, HospitalType, SnfRecord, HospitalRecord, Portfolio } from '../types/facility'
 import { StarRating } from './StarRating'
 import { getBedsDisplay, getOccupancyDisplay } from '../lib/facilityDisplay'
+import { withinRadius } from '../lib/market'
+import { HOSPITAL_TYPES } from '../lib/hospitalType'
 import { PortfolioMap } from './PortfolioMap'
 import { ResultsSection } from './ResultsSection'
+import { RadiusSlider } from './RadiusSlider'
 
 function memberId(m: PortfolioReportData['members'][number]): string {
   return `${m.facility.kind}:${m.facility.ccn}`
@@ -13,6 +16,8 @@ function memberId(m: PortfolioReportData['members'][number]): string {
 export function PortfolioReport({
   portfolio,
   data,
+  snfs,
+  hospitals,
   savedIds,
   onToggleSave,
   onClose,
@@ -20,6 +25,8 @@ export function PortfolioReport({
 }: {
   portfolio: Portfolio
   data: PortfolioReportData
+  snfs: SnfRecord[]
+  hospitals: HospitalRecord[]
   savedIds: Set<string>
   onToggleSave: (facility: FacilityRecord, radiusOverride?: number) => void
   onClose: () => void
@@ -27,6 +34,9 @@ export function PortfolioReport({
 }) {
   const [tab, setTab] = useState<'list' | 'map'>('list')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [radiusOverride, setRadiusOverride] = useState<number | null>(null)
+  const [resultFilter, setResultFilter] = useState<'all' | 'snf' | 'hospital'>('all')
+  const [hospitalTypeFilter, setHospitalTypeFilter] = useState<Set<HospitalType>>(new Set(HOSPITAL_TYPES))
 
   useEffect(() => {
     if (data.members.length > 0 && (selectedId == null || !data.members.some((m) => memberId(m) === selectedId))) {
@@ -35,7 +45,53 @@ export function PortfolioReport({
   }, [data.members, selectedId])
 
   const selectedMember = data.members.find((m) => memberId(m) === selectedId) ?? null
-  const selectedCompetitors = selectedId ? data.competitorsByMemberId.get(selectedId) ?? [] : []
+
+  // Live radius exploration, same idea as the regular search page's slider — starts at the
+  // facility's saved radius but doesn't overwrite it unless the user explicitly saves again.
+  useEffect(() => {
+    setRadiusOverride(null)
+  }, [selectedId])
+  const effectiveRadius = radiusOverride ?? selectedMember?.row.radiusMiles ?? 10
+
+  const memberSnfCcns = useMemo(
+    () => new Set(data.members.filter((m) => m.facility.kind === 'snf').map((m) => m.facility.ccn)),
+    [data.members]
+  )
+  const memberHospitalCcns = useMemo(
+    () => new Set(data.members.filter((m) => m.facility.kind === 'hospital').map((m) => m.facility.ccn)),
+    [data.members]
+  )
+
+  const liveCompetitors = useMemo(() => {
+    if (!selectedMember?.facility.latitude || !selectedMember?.facility.longitude) return []
+    return withinRadius(
+      { latitude: selectedMember.facility.latitude, longitude: selectedMember.facility.longitude },
+      snfs,
+      effectiveRadius,
+      selectedMember.facility.kind === 'snf' ? selectedMember.facility.ccn : undefined
+    ).filter((r) => !memberSnfCcns.has(r.facility.ccn))
+  }, [selectedMember, snfs, effectiveRadius, memberSnfCcns])
+
+  const liveHospitalsAll = useMemo(() => {
+    if (!selectedMember?.facility.latitude || !selectedMember?.facility.longitude) return []
+    return withinRadius(
+      { latitude: selectedMember.facility.latitude, longitude: selectedMember.facility.longitude },
+      hospitals,
+      effectiveRadius,
+      selectedMember.facility.kind === 'hospital' ? selectedMember.facility.ccn : undefined
+    ).filter((r) => !memberHospitalCcns.has(r.facility.ccn))
+  }, [selectedMember, hospitals, effectiveRadius, memberHospitalCcns])
+
+  const liveHospitals = useMemo(
+    () => liveHospitalsAll.filter((r) => hospitalTypeFilter.has(r.facility.hospitalType)),
+    [liveHospitalsAll, hospitalTypeFilter]
+  )
+
+  const mapCompetitors = resultFilter === 'hospital' ? [] : liveCompetitors
+  const mapHospitals = resultFilter === 'snf' ? [] : liveHospitals
+
+  const combinedResults =
+    resultFilter === 'snf' ? liveCompetitors : resultFilter === 'hospital' ? liveHospitals : [...liveCompetitors, ...liveHospitals]
 
   const [exporting, setExporting] = useState(false)
 
@@ -107,31 +163,86 @@ export function PortfolioReport({
                 })}
               </div>
 
-              <p className="text-xs text-slate-400">
-                Gold-ringed pins are your portfolio's facilities — all of them stay visible regardless of which one is
-                selected. Selecting one draws its search radius and that facility's competitors (plain blue dots).
-              </p>
-
-              <div className="h-[420px]">
-                <PortfolioMap
-                  members={data.members}
-                  selectedId={selectedId}
-                  competitors={selectedCompetitors}
-                  onSelect={setSelectedId}
-                />
-              </div>
-
               {selectedMember && (
                 <>
                   <p className="text-xs text-slate-400">
-                    Within {selectedMember.row.radiusMiles} mi of {selectedMember.row.name} — same sortable list, photos,
-                    and detail as the regular search view.
+                    Gold-ringed pins are your portfolio's facilities — all of them stay visible regardless of which one is
+                    selected. This is the exact same explore experience as a standalone facility: adjust the radius,
+                    filter by type, browse the full list — the distance/shared-competition sections on the List tab are
+                    the added portfolio context.
                   </p>
+
+                  <RadiusSlider
+                    value={effectiveRadius}
+                    onChange={setRadiusOverride}
+                    facilityCount={liveCompetitors.length + liveHospitals.length}
+                  />
+
+                  <div className="h-[420px]">
+                    <PortfolioMap
+                      members={data.members}
+                      selectedId={selectedId}
+                      radiusMiles={effectiveRadius}
+                      competitors={mapCompetitors}
+                      hospitals={mapHospitals}
+                      onSelect={setSelectedId}
+                    />
+                  </div>
+
+                  <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 text-sm dark:bg-slate-800">
+                    <button
+                      onClick={() => setResultFilter('all')}
+                      className={`flex-1 rounded-md px-3 py-1.5 ${resultFilter === 'all' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
+                    >
+                      Both ({liveCompetitors.length + liveHospitals.length})
+                    </button>
+                    <button
+                      onClick={() => setResultFilter('snf')}
+                      className={`flex-1 rounded-md px-3 py-1.5 ${resultFilter === 'snf' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
+                    >
+                      SNFs ({liveCompetitors.length})
+                    </button>
+                    <button
+                      onClick={() => setResultFilter('hospital')}
+                      className={`flex-1 rounded-md px-3 py-1.5 ${resultFilter === 'hospital' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
+                    >
+                      Hospitals ({liveHospitals.length})
+                    </button>
+                  </div>
+
+                  {resultFilter !== 'snf' && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {HOSPITAL_TYPES.map((t) => {
+                        const active = hospitalTypeFilter.has(t)
+                        return (
+                          <button
+                            key={t}
+                            onClick={() =>
+                              setHospitalTypeFilter((prev) => {
+                                const next = new Set(prev)
+                                if (next.has(t)) next.delete(t)
+                                else next.add(t)
+                                return next
+                              })
+                            }
+                            className={`rounded-full border px-2.5 py-1 text-xs ${
+                              active
+                                ? 'border-brand bg-brand/10 text-brand'
+                                : 'border-slate-300 text-slate-400 dark:border-slate-700'
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
                   <ResultsSection
-                    title={`Competitors near ${selectedMember.row.name}`}
-                    items={selectedCompetitors}
+                    title={`Within ${effectiveRadius} mi of ${selectedMember.row.name}`}
+                    items={combinedResults}
                     savedIds={savedIds}
-                    onToggleSave={(facility) => onToggleSave(facility, selectedMember.row.radiusMiles)}
+                    onToggleSave={(facility) => onToggleSave(facility, effectiveRadius)}
                   />
                 </>
               )}
@@ -210,6 +321,40 @@ export function PortfolioReport({
                     </div>
                     <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
                       {c.near.map((n, i) => (
+                        <span key={i}>
+                          {n.distanceMiles} mi from {n.member.row.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="text-sm font-semibold">Hospitals shared by 2+ of your facilities</h2>
+            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+              Hospitals within the saved search radius of two or more of your facilities.{' '}
+              {data.uniqueHospitalCount} unique hospital{data.uniqueHospitalCount === 1 ? '' : 's'} total across the
+              portfolio.
+            </p>
+            {data.sharedHospitals.length === 0 ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                No hospitals currently fall within range of more than one of your facilities.
+              </p>
+            ) : (
+              <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
+                {data.sharedHospitals.map((h) => (
+                  <div key={h.facility.ccn} className="py-2 text-sm">
+                    <div className="font-medium">
+                      {h.facility.name}{' '}
+                      <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                        {h.facility.city}, {h.facility.state}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {h.near.map((n, i) => (
                         <span key={i}>
                           {n.distanceMiles} mi from {n.member.row.name}
                         </span>

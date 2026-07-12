@@ -1,5 +1,17 @@
 import type { HospitalType } from '../types/facility'
 
+export const HOSPITAL_TYPES: HospitalType[] = [
+  'Acute Care',
+  'Critical Access',
+  'Psychiatric',
+  "Children's",
+  'VA',
+  'DoD',
+  'LTCH',
+  'Inpatient Rehab',
+  'Other'
+]
+
 /**
  * CMS "Hospital Type" free-text values → badge labels. Matched loosely because
  * CMS has varied punctuation/casing across refreshes (e.g. "Acute Care Hospitals"

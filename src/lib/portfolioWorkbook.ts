@@ -197,10 +197,43 @@ export async function buildPortfolioWorkbook(portfolio: Portfolio, data: Portfol
     }
   )
 
+  // --- Shared hospitals sheet ---
+  const sharedHospitals = wb.addWorksheet('Shared Hospitals', { views: [{ showGridLines: false }] })
+  applyPageSetup(sharedHospitals)
+  sharedHospitals.columns = [{ width: 38 }, { width: 18 }, { width: 8 }, { width: 14 }, { width: 55 }]
+  addTitle(sharedHospitals, 'Hospitals shared by 2+ of your facilities', 5)
+  addSubtitle(
+    sharedHospitals,
+    2,
+    `${data.uniqueHospitalCount} unique hospital${data.uniqueHospitalCount === 1 ? '' : 's'} total across the portfolio — rows shaded darker are near more of your facilities.`,
+    5
+  )
+  addTable(
+    sharedHospitals,
+    4,
+    ['Hospital', 'City', 'State', '# Your Facilities Near', 'Distance to Each'],
+    data.sharedHospitals.map((h) => [
+      h.facility.name,
+      h.facility.city,
+      h.facility.state,
+      h.near.length,
+      h.near.map((n) => `${n.member.row.name} (${n.distanceMiles} mi)`).join('; ')
+    ]),
+    {
+      rowFill: (values) => {
+        const count = values[3] as number
+        if (count >= 3) return AMBER_3PLUS
+        if (count === 2) return AMBER_2
+        return undefined
+      }
+    }
+  )
+
   // --- One sheet per facility ---
   const usedNames = new Set<string>()
   for (const m of data.members) {
     const competitors = data.competitorsByMemberId.get(memberId(m)) ?? []
+    const nearbyHospitals = data.hospitalsByMemberId.get(memberId(m)) ?? []
     let sheetName = m.row.name.replace(/[\\/*?:[\]]/g, ' ').slice(0, 28) || 'Facility'
     let suffix = 2
     while (usedNames.has(sheetName.toLowerCase())) {
@@ -212,15 +245,34 @@ export async function buildPortfolioWorkbook(portfolio: Portfolio, data: Portfol
     const sheet = wb.addWorksheet(sheetName, { views: [{ showGridLines: false }] })
     applyPageSetup(sheet)
     sheet.columns = [{ width: 38 }, { width: 18 }, { width: 8 }, { width: 13 }, { width: 9 }, { width: 12 }, { width: 9 }]
-    addTitle(sheet, `Competitors near ${m.row.name}`, 7)
+    addTitle(sheet, `Near ${m.row.name}`, 7)
     addSubtitle(sheet, 2, `Within the saved ${m.row.radiusMiles} mi search radius of ${m.row.name}, ${m.row.city}, ${m.row.state}.`, 7)
-    addTable(
+
+    let facRow = 4
+    sheet.getCell(facRow, 1).value = 'Competing SNFs'
+    sheet.getCell(facRow, 1).font = { bold: true, size: 12, color: { argb: TEAL } }
+    facRow += 1
+    facRow = addTable(
       sheet,
-      4,
+      facRow,
       ['Name', 'City', 'State', 'Distance (mi)', 'Beds', 'Occupancy', 'Rating'],
       competitors.map((c) => {
         const occ = getOccupancyDisplay(c.facility)
         return [c.facility.name, c.facility.city, c.facility.state, c.distanceMiles, getBedsDisplay(c.facility), occ.text, ratingValue(c.facility.overallRating)]
+      })
+    )
+
+    facRow += 1
+    sheet.getCell(facRow, 1).value = 'Hospitals'
+    sheet.getCell(facRow, 1).font = { bold: true, size: 12, color: { argb: TEAL } }
+    facRow += 1
+    addTable(
+      sheet,
+      facRow,
+      ['Name', 'City', 'State', 'Distance (mi)', 'Beds', 'Occupancy', 'Rating'],
+      nearbyHospitals.map((h) => {
+        const occ = getOccupancyDisplay(h.facility)
+        return [h.facility.name, h.facility.city, h.facility.state, h.distanceMiles, getBedsDisplay(h.facility), occ.text, ratingValue(h.facility.overallRating)]
       })
     )
   }

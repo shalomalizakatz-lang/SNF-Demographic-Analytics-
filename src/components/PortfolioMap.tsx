@@ -1,18 +1,22 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
-import type { SnfRecord } from '../types/facility'
+import type { SnfRecord, HospitalRecord } from '../types/facility'
 import type { PortfolioMemberResolved } from '../lib/portfolioReport'
 import { MAP_COLORS, dotIcon } from '../lib/mapIcons'
 
 export function PortfolioMap({
   members,
   selectedId,
+  radiusMiles,
   competitors,
+  hospitals,
   onSelect
 }: {
   members: PortfolioMemberResolved[]
   selectedId: string | null
+  radiusMiles: number
   competitors: { facility: SnfRecord; distanceMiles: number }[]
+  hospitals: { facility: HospitalRecord; distanceMiles: number }[]
   onSelect: (id: string) => void
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -46,7 +50,7 @@ export function PortfolioMap({
     // Radius circle for the selected facility only — but every portfolio facility still
     // gets a marker below, regardless of whether it falls inside this circle.
     if (selectedMember?.facility.latitude != null && selectedMember?.facility.longitude != null) {
-      const radiusMeters = selectedMember.row.radiusMiles * 1609.34
+      const radiusMeters = radiusMiles * 1609.34
       L.circle([selectedMember.facility.latitude, selectedMember.facility.longitude], {
         radius: radiusMeters,
         color: MAP_COLORS.anchor,
@@ -78,12 +82,19 @@ export function PortfolioMap({
           .bindPopup(`<strong>${c.facility.name}</strong><br/>${c.distanceMiles} mi from ${selectedMember.row.name}`)
           .addTo(layer)
       }
+      for (const h of hospitals) {
+        if (h.facility.latitude == null || h.facility.longitude == null) continue
+        bounds.push([h.facility.latitude, h.facility.longitude])
+        L.marker([h.facility.latitude, h.facility.longitude], { icon: dotIcon(MAP_COLORS.hospital, 12, false) })
+          .bindPopup(`<strong>${h.facility.name}</strong><br/>${h.distanceMiles} mi from ${selectedMember.row.name}`)
+          .addTo(layer)
+      }
     }
 
     if (bounds.length > 0) {
       map.fitBounds(L.latLngBounds(bounds), { padding: [30, 30], maxZoom: 13 })
     }
-  }, [members, selectedId, competitors, onSelect])
+  }, [members, selectedId, radiusMiles, competitors, hospitals, onSelect])
 
   return <div ref={containerRef} className="h-full min-h-[400px] w-full rounded-xl" />
 }
