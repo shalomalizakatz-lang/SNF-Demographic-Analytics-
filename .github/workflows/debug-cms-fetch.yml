@@ -52,13 +52,13 @@ jobs:
 
           echo "--- byte range around first <table or field--name-body occurrence ---"
           python3 -c "
-import re
-with open('subpage.html') as f:
-    html = f.read()
-m = re.search(r'field--name-body|<table', html, re.I)
-if m:
-    start = max(0, m.start()-200)
-    print(html[start:start+3000])
-else:
-    print('NO MATCH for field--name-body or <table')
-"
+          import re
+          with open('subpage.html') as f:
+              html = f.read()
+          m = re.search(r'field--name-body|<table', html, re.I)
+          if m:
+              start = max(0, m.start()-200)
+              print(html[start:start+3000])
+          else:
+              print('NO MATCH for field--name-body or <table')
+          "
