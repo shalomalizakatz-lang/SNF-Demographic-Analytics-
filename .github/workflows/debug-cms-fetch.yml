@@ -46,3 +46,19 @@ jobs:
           grep -ino '.\{60\}zip.\{60\}' subpage.html || echo "(none)"
           echo "--- title ---"
           grep -oE '<title>[^<]*</title>' subpage.html
+
+          echo "--- download/api/ajax/table mentions with context ---"
+          grep -ino '.\{40\}\(download\|api/\|ajax\|\.json\|datatable\|<table\|field--name\).\{80\}' subpage.html | head -60 || echo "(none)"
+
+          echo "--- byte range around first <table or field--name-body occurrence ---"
+          python3 -c "
+import re
+with open('subpage.html') as f:
+    html = f.read()
+m = re.search(r'field--name-body|<table', html, re.I)
+if m:
+    start = max(0, m.start()-200)
+    print(html[start:start+3000])
+else:
+    print('NO MATCH for field--name-body or <table')
+"
