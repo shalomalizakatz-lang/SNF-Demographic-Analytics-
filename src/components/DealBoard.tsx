@@ -17,7 +17,6 @@ export function DealBoard({
   onRemove,
   onNotesChange,
   onMove,
-  onGoToSearch,
   onCreatePortfolio,
   onDeletePortfolio,
   onToggleMember,
@@ -34,7 +33,6 @@ export function DealBoard({
   onRemove: (row: SavedFacilityRow) => void
   onNotesChange: (row: SavedFacilityRow, notes: string) => void
   onMove: (row: SavedFacilityRow, direction: -1 | 1) => void
-  onGoToSearch: () => void
   onCreatePortfolio: (name: string) => void
   onDeletePortfolio: (id: string) => void
   onToggleMember: (portfolioId: string, facilityId: string, inPortfolio: boolean) => void
@@ -109,9 +107,6 @@ export function DealBoard({
             className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100 disabled:opacity-60 dark:border-slate-700 dark:hover:bg-slate-800"
           >
             {exporting ? 'Building…' : 'Download report (Excel)'}
-          </button>
-          <button onClick={onGoToSearch} className="rounded-lg bg-brand px-3 py-1.5 text-sm text-white hover:opacity-90">
-            + New search
           </button>
         </div>
       </div>

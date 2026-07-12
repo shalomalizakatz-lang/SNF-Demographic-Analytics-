@@ -298,7 +298,6 @@ export default function App() {
               await reorderSavedFacilities(ids)
               await refreshSaved()
             }}
-            onGoToSearch={() => setView('search')}
             onCreatePortfolio={handleCreatePortfolio}
             onDeletePortfolio={handleDeletePortfolio}
             onToggleMember={handleToggleMember}
