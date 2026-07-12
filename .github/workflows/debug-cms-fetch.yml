@@ -1,64 +1,39 @@
-name: Debug - fetch CMS cost reports page
+name: Debug - inspect real HCRIS S-3 Part I column layout
 
 on:
   workflow_dispatch:
 
 jobs:
-  fetch:
+  inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch the page and analyze inline (prints to log -- avoids needing artifact download)
+      - name: Download FY2025 SNF cost report zip and inspect worksheet S300001 columns
         run: |
-          curl -sSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
-            "https://www.cms.gov/data-research/statistics-trends-and-reports/cost-reports/cost-reports-fiscal-year" \
-            -o page.html -w "HTTP %{http_code}\n"
-          echo "=== byte count ==="
-          wc -c page.html
+          curl -sSL "https://downloads.cms.gov/FILES/HCRIS/SNF10FY2025.ZIP" -o snf2025.zip -w "download HTTP %{http_code}\n"
+          mkdir extracted
+          unzip -o -q snf2025.zip -d extracted
+          echo "=== extracted files ==="
+          ls -la extracted
 
-          echo "=== any occurrence of 'zip' (case-insensitive), with context ==="
-          grep -ino '.\{60\}zip.\{60\}' page.html | head -30 || echo "(none)"
-
-          echo "=== any occurrence of 'SNF' (case-insensitive), with context ==="
-          grep -ino '.\{60\}SNF.\{60\}' page.html | head -30 || echo "(none)"
-
-          echo "=== all <a href> targets (first 80, deduped) ==="
-          grep -oE 'href="[^"]*"' page.html | sort -u | head -80 || echo "(none)"
-
-          echo "=== script/json data blobs (first 500 chars each, up to 5) ==="
-          grep -oE '<script[^>]*type="application/json"[^>]*>.{0,500}' page.html | head -5 || echo "(none found)"
-
-          echo "=== does the page mention 'cost-reports-by-fiscal-year' or similar API/data endpoints ==="
-          grep -ino '.\{40\}\(api\|endpoint\|/files/\|download\).\{60\}' page.html | sort -u | head -40 || echo "(none)"
-
-          echo "=== title tag and first 2000 chars of body for sanity ==="
-          grep -oE '<title>[^<]*</title>' page.html || echo "(no title found)"
-          sed -n '1,50p' page.html
+          NMRC=$(ls extracted/*NMRC*.csv extracted/*nmrc*.csv 2>/dev/null | head -1)
+          RPT=$(ls extracted/*RPT*.csv extracted/*rpt*.csv 2>/dev/null | grep -iv alph | head -1)
+          echo "NMRC file: $NMRC"
+          echo "RPT file: $RPT"
 
           echo ""
-          echo "############ SUB-PAGE: snf-2010-fy-2025-data-files ############"
-          curl -sSL -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
-            "https://www.cms.gov/data-research/statistics-trends-and-reports/cost-reports/cost-reports-fiscal-year/snf-2010-fy-2025-data-files" \
-            -o subpage.html -w "HTTP %{http_code}\n"
-          wc -c subpage.html
-          echo "--- all href targets on subpage ---"
-          grep -oE 'href="[^"]*"' subpage.html | sort -u
-          echo "--- zip mentions with context ---"
-          grep -ino '.\{60\}zip.\{60\}' subpage.html || echo "(none)"
-          echo "--- title ---"
-          grep -oE '<title>[^<]*</title>' subpage.html
+          echo "=== line 00100 (candidate beds/bed-days line), per-column stats ==="
+          awk -F, '$2=="S300001" && $3=="00100" { col=$4; val=$5+0; n[col]++; sum[col]+=val; if (!(col in mn) || val<mn[col]) mn[col]=val; if (!(col in mx) || val>mx[col]) mx[col]=val } END { for (c in n) printf "col=%s  n=%d  min=%s  max=%s  avg=%.1f\n", c, n[c], mn[c], mx[c], sum[c]/n[c] }' "$NMRC" | sort
 
-          echo "--- download/api/ajax/table mentions with context ---"
-          grep -ino '.\{40\}\(download\|api/\|ajax\|\.json\|datatable\|<table\|field--name\).\{80\}' subpage.html | head -60 || echo "(none)"
+          echo ""
+          echo "=== line 00800 (candidate patient-days line), per-column stats ==="
+          awk -F, '$2=="S300001" && $3=="00800" { col=$4; val=$5+0; n[col]++; sum[col]+=val; if (!(col in mn) || val<mn[col]) mn[col]=val; if (!(col in mx) || val>mx[col]) mx[col]=val } END { for (c in n) printf "col=%s  n=%d  min=%s  max=%s  avg=%.1f\n", c, n[c], mn[c], mx[c], sum[c]/n[c] }' "$NMRC" | sort
 
-          echo "--- byte range around first <table or field--name-body occurrence ---"
-          python3 -c "
-          import re
-          with open('subpage.html') as f:
-              html = f.read()
-          m = re.search(r'field--name-body|<table', html, re.I)
-          if m:
-              start = max(0, m.start()-200)
-              print(html[start:start+3000])
-          else:
-              print('NO MATCH for field--name-body or <table')
-          "
+          echo ""
+          echo "=== all distinct (line, col) pairs seen on worksheet S300001, with row counts ==="
+          awk -F, '$2=="S300001" { print $3, $4 }' "$NMRC" | sort | uniq -c | sort -rn | head -40
+
+          echo ""
+          echo "=== sample raw rows for RPT_REC_NUM of the first report in the RPT file, worksheet S300001 only ==="
+          FIRST_RPT=$(head -1 "$RPT" | cut -d, -f1)
+          echo "first RPT_REC_NUM: $FIRST_RPT"
+          awk -F, -v rpt="$FIRST_RPT" '$1==rpt && $2=="S300001"' "$NMRC" | sort -t, -k3,3 -k4,4
