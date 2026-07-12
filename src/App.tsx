@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FacilityRecord, HospitalType, SnfRecord, HospitalRecord, Portfolio } from './types/facility'
 import { loadSnfData, loadHospitalData, recheckSnfCoordinates } from './data/dataset'
 import { loadOccupancyForStates } from './data/occupancy'
+import { HOSPITAL_TYPES } from './lib/hospitalType'
 import {
   listSavedFacilities,
   saveFacility,
@@ -30,18 +31,6 @@ import { ExportBar } from './components/ExportBar'
 import { SettingsMenu } from './components/SettingsMenu'
 import { CompareCard } from './components/CompareCard'
 import { BottomNav } from './components/BottomNav'
-
-const HOSPITAL_TYPES: HospitalType[] = [
-  'Acute Care',
-  'Critical Access',
-  'Psychiatric',
-  "Children's",
-  'VA',
-  'DoD',
-  'LTCH',
-  'Inpatient Rehab',
-  'Other'
-]
 
 type View = 'board' | 'search'
 
@@ -231,7 +220,7 @@ export default function App() {
     if (!viewingPortfolio) return null
     const memberIds = [...(memberIdsByPortfolio.get(viewingPortfolio.id) ?? [])]
     const members = resolvePortfolioMembers(memberIds, saved, snfs, hospitals)
-    return buildPortfolioReport(members, snfs)
+    return buildPortfolioReport(members, snfs, hospitals)
   }, [viewingPortfolio, memberIdsByPortfolio, saved, snfs, hospitals])
 
   if (loading) {
@@ -274,6 +263,8 @@ export default function App() {
           <PortfolioReport
             portfolio={viewingPortfolio}
             data={portfolioReportData}
+            snfs={snfs}
+            hospitals={hospitals}
             savedIds={savedIds}
             onToggleSave={toggleSave}
             onClose={() => setViewingPortfolioId(null)}
