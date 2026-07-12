@@ -37,3 +37,14 @@ jobs:
           FIRST_RPT=$(head -1 "$RPT" | cut -d, -f1)
           echo "first RPT_REC_NUM: $FIRST_RPT"
           awk -F, -v rpt="$FIRST_RPT" '$1==rpt && $2=="S300001"' "$NMRC" | sort -t, -k3,3 -k4,4
+
+          echo ""
+          echo "=== worksheet G300000 (financial), per-line/column stats for candidate revenue/expense/income lines ==="
+          for LINE in 00100 00300 00400 00500; do
+            echo "--- line $LINE ---"
+            awk -F, -v line="$LINE" '$2=="G300000" && $3==line { col=$4; val=$5+0; n[col]++; sum[col]+=val; if (!(col in mn) || val<mn[col]) mn[col]=val; if (!(col in mx) || val>mx[col]) mx[col]=val } END { for (c in n) printf "col=%s  n=%d  min=%s  max=%s  avg=%.1f\n", c, n[c], mn[c], mx[c], sum[c]/n[c] }' "$NMRC" | sort
+          done
+
+          echo ""
+          echo "=== sample raw rows for the same RPT_REC_NUM, worksheet G300000 only ==="
+          awk -F, -v rpt="$FIRST_RPT" '$1==rpt && $2=="G300000"' "$NMRC" | sort -t, -k3,3 -k4,4
