@@ -59,12 +59,19 @@ export default {
     const upstream = await fetch(targetUrl, init)
     const body = await upstream.arrayBuffer()
 
+    // Only cache successful responses — caching an error (e.g. a transient upstream
+    // failure, or a rejection that gets fixed server-side minutes later) would keep
+    // serving that same failure from the browser's disk cache and Cloudflare's edge
+    // cache for up to an hour, long after the real problem is gone. Confirmed in
+    // production: stale cached 403s kept appearing after the underlying fix shipped.
+    const cacheable = request.method === 'GET' && upstream.status >= 200 && upstream.status < 300
+
     return new Response(body, {
       status: upstream.status,
       headers: {
         'Content-Type': upstream.headers.get('Content-Type') || 'application/octet-stream',
         'Access-Control-Allow-Origin': '*',
-        'Cache-Control': request.method === 'GET' ? 'public, max-age=3600' : 'no-store'
+        'Cache-Control': cacheable ? 'public, max-age=3600' : 'no-store'
       }
     })
   }
