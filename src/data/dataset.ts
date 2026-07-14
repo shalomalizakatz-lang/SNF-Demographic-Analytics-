@@ -14,6 +14,7 @@ export interface LoadResult<T> {
 
 const SNF_META_KEY = 'snf'
 const HOSPITAL_META_KEY = 'hospital'
+export const BEDS_ERROR_KEY = 'scoutsnf:bedsError'
 
 /**
  * CMS's own coordinates for a meaningful subset of SNFs turn out to be identical
@@ -181,9 +182,14 @@ export async function loadHospitalData(
         const bedCount = beds.get(h.ccn)
         if (bedCount != null) h.certifiedBeds = bedCount
       }
+      localStorage.removeItem(BEDS_ERROR_KEY)
     } catch (err) {
-      // bed counts stay null; surfaced as "Not available" in UI rather than failing the whole roster
+      // bed counts stay null; surfaced as "Not available" in the facility UI rather than
+      // failing the whole roster. The message is kept in localStorage (shown in Settings)
+      // since this fetch can't be exercised or debugged from the build environment.
+      const message = err instanceof Error ? err.message : String(err)
       console.warn('[dataset] hospital bed count fetch failed', err)
+      localStorage.setItem(BEDS_ERROR_KEY, `${new Date().toLocaleString()} — ${message}`)
     }
 
     await db.transaction('rw', db.hospitals, db.meta, async () => {
