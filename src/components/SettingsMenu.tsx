@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { BEDS_ERROR_KEY } from '../data/dataset'
 
 export function SettingsMenu({
   snfFetchedAt,
@@ -18,9 +19,11 @@ export function SettingsMenu({
   const [recheckStatus, setRecheckStatus] = useState<'idle' | 'running' | 'done'>('idle')
   const [recheckProgress, setRecheckProgress] = useState<{ done: number; total: number } | null>(null)
   const [recheckCount, setRecheckCount] = useState<number | null>(null)
+  const [bedsError, setBedsError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
+    setBedsError(localStorage.getItem(BEDS_ERROR_KEY))
     function onClickOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
@@ -66,6 +69,9 @@ export function SettingsMenu({
           <div className="mb-3 space-y-1 text-xs text-slate-500 dark:text-slate-400">
             <div>SNF roster: {snfFetchedAt ? new Date(snfFetchedAt).toLocaleString() : 'unknown'}</div>
             <div>Hospital roster: {hospitalFetchedAt ? new Date(hospitalFetchedAt).toLocaleString() : 'unknown'}</div>
+            {bedsError && (
+              <div className="text-red-600 dark:text-red-400">Hospital bed data: {bedsError}</div>
+            )}
           </div>
           <button
             onClick={handleRefreshClick}
