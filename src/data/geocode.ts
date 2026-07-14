@@ -37,10 +37,16 @@ async function geocodeChunk(inputs: GeocodeInput[]): Promise<Map<string, Geocode
   form.append('benchmark', 'Public_AR_Current')
   form.append('returntype', 'locations')
 
-  const res = await fetchWithRetry(CENSUS_GEOCODE_BATCH_URL, 'Census geocoder', {
-    method: 'POST',
-    body: form
-  })
+  // A 500-address batch can legitimately take close to 20s to match — confirmed in
+  // production (one request took 18.43s, two others hit the default 20s timeout and
+  // got canceled, silently dumping their entire chunk into the much slower one-address-
+  // at-a-time Nominatim fallback for no reason). Give this specific request more room.
+  const res = await fetchWithRetry(
+    CENSUS_GEOCODE_BATCH_URL,
+    'Census geocoder',
+    { method: 'POST', body: form },
+    { timeoutMs: 60_000 }
+  )
   const text = await res.text()
   const rows = parseCsv(text)
   for (const row of rows) {
