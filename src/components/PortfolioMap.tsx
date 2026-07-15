@@ -11,7 +11,8 @@ export function PortfolioMap({
   competitors,
   hospitals,
   onSelect,
-  onCompare
+  onCompare,
+  highlight
 }: {
   members: PortfolioMemberResolved[]
   selectedId: string | null
@@ -20,6 +21,8 @@ export function PortfolioMap({
   hospitals: { facility: HospitalRecord; distanceMiles: number }[]
   onSelect: (id: string) => void
   onCompare?: (facility: SnfRecord | HospitalRecord, distanceMiles: number) => void
+  /** The facility currently shown in the "compare to anchor" card, if any — gets a highlight ring + dashed line to the anchor. */
+  highlight?: SnfRecord | HospitalRecord | null
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<L.Map | null>(null)
@@ -90,17 +93,46 @@ export function PortfolioMap({
       marker.bindPopup(popupDiv)
     }
 
+    function isHighlighted(facility: SnfRecord | HospitalRecord): boolean {
+      return highlight != null && highlight.kind === facility.kind && highlight.ccn === facility.ccn
+    }
+
     if (selectedMember) {
+      // Dashed line from the anchor to whichever facility is currently in the "compare to
+      // anchor" card, same treatment the regular search map gives its compared pin.
+      if (
+        highlight != null &&
+        highlight.latitude != null &&
+        highlight.longitude != null &&
+        selectedMember.facility.latitude != null &&
+        selectedMember.facility.longitude != null
+      ) {
+        const line: L.LatLngExpression[] = [
+          [selectedMember.facility.latitude, selectedMember.facility.longitude],
+          [highlight.latitude, highlight.longitude]
+        ]
+        L.polyline(line, { color: '#1e293b', weight: 5, opacity: 0.55 }).addTo(layer)
+        L.polyline(line, { color: MAP_COLORS.highlightRing, weight: 3, dashArray: '10 6', opacity: 1 }).addTo(layer)
+      }
+
       for (const c of competitors) {
         if (c.facility.latitude == null || c.facility.longitude == null) continue
         bounds.push([c.facility.latitude, c.facility.longitude])
-        const marker = L.marker([c.facility.latitude, c.facility.longitude], { icon: dotIcon(MAP_COLORS.snf, 12, false) }).addTo(layer)
+        const highlighted = isHighlighted(c.facility)
+        const marker = L.marker([c.facility.latitude, c.facility.longitude], {
+          icon: dotIcon(MAP_COLORS.snf, 12, highlighted),
+          zIndexOffset: highlighted ? 900 : 0
+        }).addTo(layer)
         bindComparePopup(marker, c.facility, c.distanceMiles, selectedMember.row.name)
       }
       for (const h of hospitals) {
         if (h.facility.latitude == null || h.facility.longitude == null) continue
         bounds.push([h.facility.latitude, h.facility.longitude])
-        const marker = L.marker([h.facility.latitude, h.facility.longitude], { icon: dotIcon(MAP_COLORS.hospital, 12, false) }).addTo(layer)
+        const highlighted = isHighlighted(h.facility)
+        const marker = L.marker([h.facility.latitude, h.facility.longitude], {
+          icon: dotIcon(MAP_COLORS.hospital, 12, highlighted),
+          zIndexOffset: highlighted ? 900 : 0
+        }).addTo(layer)
         bindComparePopup(marker, h.facility, h.distanceMiles, selectedMember.row.name)
       }
     }
@@ -108,7 +140,7 @@ export function PortfolioMap({
     if (bounds.length > 0) {
       map.fitBounds(L.latLngBounds(bounds), { padding: [30, 30], maxZoom: 13 })
     }
-  }, [members, selectedId, radiusMiles, competitors, hospitals, onSelect, onCompare])
+  }, [members, selectedId, radiusMiles, competitors, hospitals, onSelect, onCompare, highlight])
 
   return <div ref={containerRef} className="h-full min-h-[400px] w-full rounded-xl" />
 }
