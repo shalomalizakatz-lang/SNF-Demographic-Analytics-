@@ -1,45 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { PortfolioReportData, SharedFacility } from '../lib/portfolioReport'
+import type { PortfolioReportData } from '../lib/portfolioReport'
+import { portfolioMemberId, buildPortfolioClusters, type Cluster } from '../lib/portfolioClusters'
 import type { FacilityRecord, HospitalType, SnfRecord, HospitalRecord, Portfolio } from '../types/facility'
-import { StarRating } from './StarRating'
-import { TypeBadge } from './TypeBadge'
-import { getBedsDisplay, getOccupancyDisplay } from '../lib/facilityDisplay'
 import { withinRadius } from '../lib/market'
 import { HOSPITAL_TYPES } from '../lib/hospitalType'
 import { PortfolioMap } from './PortfolioMap'
 import { ResultsSection } from './ResultsSection'
 import { RadiusSlider } from './RadiusSlider'
+import { ClusterCard } from './ClusterCard'
+import { ClusterSettingsRow, CLUSTER_THRESHOLD_OPTIONS } from './ClusterSettingsRow'
+import { StandaloneRow } from './StandaloneRow'
+import { PortfolioAnchorDrillDown } from './PortfolioAnchorDrillDown'
+import { PortfolioMemberRow } from './PortfolioMemberRow'
 
-function memberId(m: PortfolioReportData['members'][number]): string {
-  return `${m.facility.kind}:${m.facility.ccn}`
-}
+const CLUSTER_THRESHOLD_KEY = 'scoutsnf:portfolioClusterThreshold'
+const COMPETITOR_RADIUS_KEY = 'scoutsnf:portfolioCompetitorRadius'
 
-interface SharedGroup<T extends FacilityRecord> {
-  memberNames: string[]
-  items: SharedFacility<T>[]
-}
-
-/** Groups shared facilities by exactly which of your portfolio facilities they're near, so with
- * 3+ facilities the reader sees "shared between A & B" vs. "shared between B & C" separately
- * instead of one undifferentiated list. */
-function groupByMemberCombo<T extends FacilityRecord>(shared: SharedFacility<T>[]): SharedGroup<T>[] {
-  const groups = new Map<string, SharedGroup<T>>()
-  for (const item of shared) {
-    const names = item.near.map((n) => n.member.row.name).sort((a, b) => a.localeCompare(b))
-    const key = names.join('|')
-    const group = groups.get(key) ?? { memberNames: names, items: [] }
-    group.items.push(item)
-    groups.set(key, group)
-  }
-  return [...groups.values()].sort((a, b) => {
-    if (b.memberNames.length !== a.memberNames.length) return b.memberNames.length - a.memberNames.length
-    return a.memberNames.join().localeCompare(b.memberNames.join())
-  })
-}
-
-function formatMemberNames(names: string[]): string {
-  if (names.length <= 1) return names.join('')
-  return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`
+function readStoredNumber(key: string, fallback: number): number {
+  const raw = localStorage.getItem(key)
+  const n = raw != null ? Number(raw) : NaN
+  return Number.isFinite(n) ? n : fallback
 }
 
 export function PortfolioReport({
@@ -67,16 +47,32 @@ export function PortfolioReport({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [radiusOverride, setRadiusOverride] = useState<number | null>(null)
   const [resultFilter, setResultFilter] = useState<'all' | 'snf' | 'hospital'>('all')
-  const [sharedTab, setSharedTab] = useState<'snf' | 'hospital'>('snf')
   const [hospitalTypeFilter, setHospitalTypeFilter] = useState<Set<HospitalType>>(new Set(HOSPITAL_TYPES))
 
+  const [clusterThreshold, setClusterThreshold] = useState(() => readStoredNumber(CLUSTER_THRESHOLD_KEY, 25))
+  const [competitorRadius, setCompetitorRadius] = useState(() => readStoredNumber(COMPETITOR_RADIUS_KEY, 15))
+  const [drilldownId, setDrilldownId] = useState<string | null>(null)
+
+  function changeClusterThreshold(v: number) {
+    setClusterThreshold(v)
+    localStorage.setItem(CLUSTER_THRESHOLD_KEY, String(v))
+  }
+  function changeCompetitorRadius(v: number) {
+    setCompetitorRadius(v)
+    localStorage.setItem(COMPETITOR_RADIUS_KEY, String(v))
+  }
+
   useEffect(() => {
-    if (data.members.length > 0 && (selectedId == null || !data.members.some((m) => memberId(m) === selectedId))) {
-      setSelectedId(memberId(data.members[0]))
+    if (data.members.length > 0 && (selectedId == null || !data.members.some((m) => portfolioMemberId(m) === selectedId))) {
+      setSelectedId(portfolioMemberId(data.members[0]))
     }
   }, [data.members, selectedId])
 
-  const selectedMember = data.members.find((m) => memberId(m) === selectedId) ?? null
+  useEffect(() => {
+    setDrilldownId(null)
+  }, [portfolio.id])
+
+  const selectedMember = data.members.find((m) => portfolioMemberId(m) === selectedId) ?? null
 
   // Live radius exploration, same idea as the regular search page's slider — starts at the
   // facility's saved radius but doesn't overwrite it unless the user explicitly saves again.
@@ -125,8 +121,22 @@ export function PortfolioReport({
   const combinedResults =
     resultFilter === 'snf' ? liveCompetitors : resultFilter === 'hospital' ? liveHospitals : [...liveCompetitors, ...liveHospitals]
 
-  const sharedCompetitorGroups = useMemo(() => groupByMemberCombo(data.sharedCompetitors), [data.sharedCompetitors])
-  const sharedHospitalGroups = useMemo(() => groupByMemberCombo(data.sharedHospitals), [data.sharedHospitals])
+  const clusterResult = useMemo(
+    () => buildPortfolioClusters(data.members, data.distances, snfs, hospitals, clusterThreshold, competitorRadius),
+    [data.members, data.distances, snfs, hospitals, clusterThreshold, competitorRadius]
+  )
+
+  const clusterByMemberId = useMemo(() => {
+    const map = new Map<string, Cluster>()
+    for (const c of clusterResult.clusters) {
+      for (const m of c.members) map.set(portfolioMemberId(m), c)
+    }
+    return map
+  }, [clusterResult])
+
+  const drilldownMember = drilldownId != null ? data.members.find((m) => portfolioMemberId(m) === drilldownId) ?? null : null
+  const soleMember = data.members.length === 1 ? data.members[0] : null
+  const nextLargerThreshold = CLUSTER_THRESHOLD_OPTIONS.find((t) => t > clusterThreshold) ?? null
 
   const [exporting, setExporting] = useState(false)
 
@@ -134,7 +144,7 @@ export function PortfolioReport({
     setExporting(true)
     try {
       const { buildPortfolioWorkbook, downloadBlob } = await import('../lib/portfolioWorkbook')
-      const blob = await buildPortfolioWorkbook(portfolio, data)
+      const blob = await buildPortfolioWorkbook(portfolio, data, clusterResult, clusterThreshold, competitorRadius)
       downloadBlob(`${portfolio.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-report.xlsx`, blob)
     } finally {
       setExporting(false)
@@ -182,7 +192,7 @@ export function PortfolioReport({
             <>
               <div className="flex flex-wrap gap-1.5">
                 {data.members.map((m) => {
-                  const id = memberId(m)
+                  const id = portfolioMemberId(m)
                   const active = id === selectedId
                   return (
                     <button
@@ -278,116 +288,102 @@ export function PortfolioReport({
           )}
 
           {tab === 'list' && (
-          <>
-          <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-2 text-sm font-semibold">Facilities in this portfolio</h2>
-            <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
-              {data.members.map((m) => {
-                const occ = getOccupancyDisplay(m.facility)
-                return (
-                  <div key={m.row.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                    <button
-                      className="min-w-0 flex-1 text-left"
+            <>
+              <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                <h2 className="mb-2 text-sm font-semibold">Facilities in this portfolio</h2>
+                <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
+                  {data.members.map((m) => (
+                    <PortfolioMemberRow
+                      key={m.row.id}
+                      member={m}
                       onClick={() => onOpen(m.facility, m.row.radiusMiles)}
-                      title="Open full details, same as from ScoutBoard"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{m.row.name}</span>
-                        <TypeBadge facility={m.facility} />
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
-                        {m.row.city}, {m.row.state}
-                      </div>
-                    </button>
-                    <div className="flex shrink-0 items-center gap-3 text-xs text-slate-600 dark:text-slate-300">
-                      <span>{getBedsDisplay(m.facility)} beds</span>
-                      <span>{occ.text} occ</span>
-                      <StarRating rating={m.facility.overallRating} />
-                      <button
-                        onClick={() => onRemoveMember(memberId(m))}
-                        className="text-slate-400 hover:text-red-500"
-                        title="Remove from portfolio (returns it to ScoutBoard)"
-                      >
-                        ✕
+                      trailing={
+                        <button
+                          onClick={() => onRemoveMember(portfolioMemberId(m))}
+                          className="text-slate-400 hover:text-red-500"
+                          title="Remove from portfolio (returns it to ScoutBoard)"
+                        >
+                          ✕
+                        </button>
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+
+              {soleMember ? (
+                <PortfolioAnchorDrillDown
+                  anchor={soleMember}
+                  members={data.members}
+                  distances={data.distances}
+                  clusterByMemberId={clusterByMemberId}
+                  snfs={snfs}
+                  hospitals={hospitals}
+                  competitorRadiusMiles={competitorRadius}
+                  savedIds={savedIds}
+                  onToggleSave={onToggleSave}
+                  onSelectFacility={() => {}}
+                  onBack={() => {}}
+                  showBack={false}
+                />
+              ) : drilldownMember ? (
+                <PortfolioAnchorDrillDown
+                  anchor={drilldownMember}
+                  members={data.members}
+                  distances={data.distances}
+                  clusterByMemberId={clusterByMemberId}
+                  snfs={snfs}
+                  hospitals={hospitals}
+                  competitorRadiusMiles={competitorRadius}
+                  savedIds={savedIds}
+                  onToggleSave={onToggleSave}
+                  onSelectFacility={(m) => setDrilldownId(portfolioMemberId(m))}
+                  onBack={() => setDrilldownId(null)}
+                />
+              ) : (
+                <>
+                  <ClusterSettingsRow
+                    clusterThreshold={clusterThreshold}
+                    onClusterThresholdChange={changeClusterThreshold}
+                    competitorRadius={competitorRadius}
+                    onCompetitorRadiusChange={changeCompetitorRadius}
+                  />
+
+                  {clusterResult.clusters.length === 0 && nextLargerThreshold != null && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      No clusters at {clusterThreshold} mi —{' '}
+                      <button onClick={() => changeClusterThreshold(nextLargerThreshold)} className="text-sky-600 hover:underline dark:text-sky-400">
+                        try {nextLargerThreshold} mi
                       </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
+                      .
+                    </p>
+                  )}
 
-          {data.members.length >= 2 && (
-            <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-              <h2 className="mb-2 text-sm font-semibold">Distance between your facilities</h2>
-              <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
-                {data.distances.map((d, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 text-sm">
-                    <span>
-                      {d.a.row.name} ↔ {d.b.row.name}
-                    </span>
-                    <span className="font-medium">{d.distanceMiles} mi</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+                  {clusterResult.clusters.map((cluster) => (
+                    <ClusterCard
+                      key={cluster.id}
+                      cluster={cluster}
+                      onSelectFacility={(m) => setDrilldownId(portfolioMemberId(m))}
+                    />
+                  ))}
 
-          <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-2 text-sm font-semibold">Competitors between your facilities</h2>
-
-            <div className="mb-2 flex gap-1 rounded-lg bg-slate-100 p-0.5 text-sm dark:bg-slate-800">
-              <button
-                onClick={() => setSharedTab('snf')}
-                className={`flex-1 rounded-md px-3 py-1.5 ${sharedTab === 'snf' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
-              >
-                SNFs ({data.sharedCompetitors.length})
-              </button>
-              <button
-                onClick={() => setSharedTab('hospital')}
-                className={`flex-1 rounded-md px-3 py-1.5 ${sharedTab === 'hospital' ? 'bg-white shadow dark:bg-slate-700' : ''}`}
-              >
-                Hospitals ({data.sharedHospitals.length})
-              </button>
-            </div>
-
-            {(sharedTab === 'snf' ? sharedCompetitorGroups : sharedHospitalGroups).length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                No {sharedTab === 'snf' ? 'competitors' : 'hospitals'} currently fall within range of more than one of your
-                facilities.
-              </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {(sharedTab === 'snf' ? sharedCompetitorGroups : sharedHospitalGroups).map((group) => (
-                  <div key={group.memberNames.join('|')}>
-                    <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                      Shared by {formatMemberNames(group.memberNames)}
-                    </h3>
-                    <div className="flex flex-col divide-y divide-slate-100 rounded-lg border border-slate-100 dark:divide-slate-800 dark:border-slate-800">
-                      {group.items.map((item) => (
-                        <div key={item.facility.ccn} className="p-2 text-sm">
-                          <div className="font-medium">
-                            {item.facility.name}{' '}
-                            <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                              {item.facility.city}, {item.facility.state}
-                            </span>
-                          </div>
-                          <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
-                            {item.near.map((n, i) => (
-                              <span key={i}>
-                                {n.distanceMiles} mi from {n.member.row.name}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-          </>
+                  {clusterResult.standalones.length > 0 && (
+                    <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
+                      <h2 className="mb-2 text-sm font-semibold">Standalone facilities</h2>
+                      <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
+                        {clusterResult.standalones.map((s) => (
+                          <StandaloneRow
+                            key={s.member.row.id}
+                            standalone={s}
+                            onClick={() => setDrilldownId(portfolioMemberId(s.member))}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  )}
+                </>
+              )}
+            </>
           )}
         </>
       )}
