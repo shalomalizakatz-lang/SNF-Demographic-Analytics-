@@ -240,6 +240,7 @@ export function PortfolioReport({
                       hospitals={mapHospitals}
                       onSelect={setSelectedId}
                       onCompare={(facility, distanceMiles) => setMapCompareTarget({ facility, distanceMiles })}
+                      highlight={mapCompareTarget?.facility ?? null}
                     />
                   </div>
 
