@@ -236,7 +236,7 @@ export default function App() {
     if (!viewingPortfolio) return null
     const memberIds = [...(memberIdsByPortfolio.get(viewingPortfolio.id) ?? [])]
     const members = resolvePortfolioMembers(memberIds, saved, snfs, hospitals)
-    return buildPortfolioReport(members, snfs, hospitals)
+    return buildPortfolioReport(members)
   }, [viewingPortfolio, memberIdsByPortfolio, saved, snfs, hospitals])
 
   if (loading) {

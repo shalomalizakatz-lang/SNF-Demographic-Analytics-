@@ -1,4 +1,5 @@
 import type { PortfolioReportData } from './portfolioReport'
+import type { PortfolioClusterResult, MarketFacility } from './portfolioClusters'
 import type { Portfolio } from '../types/facility'
 import { getBedsDisplay, getOccupancyDisplay } from './facilityDisplay'
 import {
@@ -14,11 +15,29 @@ import {
 
 export { downloadBlob } from './excelStyle'
 
-function memberId(m: PortfolioReportData['members'][number]): string {
-  return `${m.facility.kind}:${m.facility.ccn}`
+function marketFacilityRows(items: MarketFacility[]): (string | number)[][] {
+  return items.map((m) => [
+    m.name,
+    m.city,
+    m.state,
+    m.beds ?? 'N/A',
+    m.occupancy != null ? `${m.occupancy}%` : 'N/A',
+    ratingValue(m.overallStars),
+    m.nearestMemberMiles,
+    m.nearestMemberName
+  ])
 }
 
-export async function buildPortfolioWorkbook(portfolio: Portfolio, data: PortfolioReportData): Promise<Blob> {
+const MARKET_HEADERS = ['Name', 'City', 'State', 'Beds', 'Occupancy', 'Rating', 'Distance (mi)', 'Nearest Facility']
+const MARKET_WIDTHS = [{ width: 34 }, { width: 16 }, { width: 8 }, { width: 8 }, { width: 11 }, { width: 8 }, { width: 13 }, { width: 26 }]
+
+export async function buildPortfolioWorkbook(
+  portfolio: Portfolio,
+  data: PortfolioReportData,
+  clusterResult: PortfolioClusterResult,
+  clusterThresholdMiles: number,
+  competitorRadiusMiles: number
+): Promise<Blob> {
   const wb = newWorkbook()
 
   // --- Summary sheet ---
@@ -31,17 +50,13 @@ export async function buildPortfolioWorkbook(portfolio: Portfolio, data: Portfol
     2,
     `Generated ${new Date().toLocaleString()} · ${data.members.length} facilit${data.members.length === 1 ? 'y' : 'ies'}${
       data.statesCovered.length > 0 ? ` · ${data.statesCovered.join(', ')}` : ''
-    }`,
+    } · clusters at ${clusterThresholdMiles} mi, competitors within ${competitorRadiusMiles} mi`,
     7
   )
 
-  let row = 4
-  summary.getCell(row, 1).value = 'Facilities in this portfolio'
-  summary.getCell(row, 1).font = { bold: true, size: 12, color: { argb: EXCEL_COLORS.teal } }
-  row += 1
-  row = addTable(
+  addTable(
     summary,
-    row,
+    4,
     ['Name', 'City', 'State', 'Beds', 'Occupancy', 'Rating', 'Saved Radius (mi)'],
     data.members.map((m) => {
       const occ = getOccupancyDisplay(m.facility)
@@ -49,130 +64,128 @@ export async function buildPortfolioWorkbook(portfolio: Portfolio, data: Portfol
     })
   )
 
-  row += 1
-  if (data.distances.length > 0) {
-    summary.getCell(row, 1).value = 'Distance between your facilities'
-    summary.getCell(row, 1).font = { bold: true, size: 12, color: { argb: EXCEL_COLORS.teal } }
-    row += 1
-    row = addTable(
-      summary,
-      row,
-      ['Facility A', 'Facility B', 'Distance (mi)'],
-      data.distances.map((d) => [d.a.row.name, d.b.row.name, d.distanceMiles])
-    )
-  }
-
-  // --- Shared competitors sheet ---
-  const shared = wb.addWorksheet('Shared Competitors', { views: [{ showGridLines: false }] })
-  applyPageSetup(shared)
-  shared.columns = [{ width: 38 }, { width: 18 }, { width: 8 }, { width: 14 }, { width: 55 }]
-  addTitle(shared, 'Competitors shared by 2+ of your facilities', 5)
+  // --- Clusters summary sheet ---
+  const clustersSheet = wb.addWorksheet('Clusters', { views: [{ showGridLines: false }] })
+  applyPageSetup(clustersSheet)
+  clustersSheet.columns = [{ width: 30 }, { width: 12 }, { width: 10 }, { width: 14 }, { width: 55 }]
+  addTitle(clustersSheet, 'Market clusters', 5)
   addSubtitle(
-    shared,
+    clustersSheet,
     2,
-    `${data.uniqueCompetitorCount} unique competitor${data.uniqueCompetitorCount === 1 ? '' : 's'} total across the portfolio — rows shaded darker are near more of your facilities.`,
+    `Portfolio facilities within ${clusterThresholdMiles} mi of each other, grouped transitively. See the per-cluster sheets for members and nearby market facilities.`,
     5
   )
   addTable(
-    shared,
+    clustersSheet,
     4,
-    ['Competitor', 'City', 'State', '# Your Facilities Near', 'Distance to Each'],
-    data.sharedCompetitors.map((c) => [
-      c.facility.name,
-      c.facility.city,
-      c.facility.state,
-      c.near.length,
-      c.near.map((n) => `${n.member.row.name} (${n.distanceMiles} mi)`).join('; ')
+    ['Cluster', 'Facilities', 'Total Beds', 'Avg Occupancy', 'Cannibalization Flags'],
+    clusterResult.clusters.map((c) => [
+      c.name,
+      c.members.length,
+      c.totalBeds,
+      c.weightedOccupancy != null ? `${c.weightedOccupancy}%` : 'N/A',
+      c.cannibalizationPairs.length > 0
+        ? c.cannibalizationPairs.map((p) => `${p.memberA.row.name} ↔ ${p.memberB.row.name} (${p.miles} mi)`).join('; ')
+        : 'None'
     ]),
     {
       rowFill: (values) => {
-        const count = values[3] as number
-        if (count >= 3) return EXCEL_COLORS.amber3plus
-        if (count === 2) return EXCEL_COLORS.amber2
-        return undefined
+        const flags = values[4] as string
+        return flags !== 'None' ? EXCEL_COLORS.amber2 : undefined
       }
     }
   )
 
-  // --- Shared hospitals sheet ---
-  const sharedHospitals = wb.addWorksheet('Shared Hospitals', { views: [{ showGridLines: false }] })
-  applyPageSetup(sharedHospitals)
-  sharedHospitals.columns = [{ width: 38 }, { width: 18 }, { width: 8 }, { width: 14 }, { width: 55 }]
-  addTitle(sharedHospitals, 'Hospitals shared by 2+ of your facilities', 5)
-  addSubtitle(
-    sharedHospitals,
-    2,
-    `${data.uniqueHospitalCount} unique hospital${data.uniqueHospitalCount === 1 ? '' : 's'} total across the portfolio — rows shaded darker are near more of your facilities.`,
-    5
-  )
-  addTable(
-    sharedHospitals,
-    4,
-    ['Hospital', 'City', 'State', '# Your Facilities Near', 'Distance to Each'],
-    data.sharedHospitals.map((h) => [
-      h.facility.name,
-      h.facility.city,
-      h.facility.state,
-      h.near.length,
-      h.near.map((n) => `${n.member.row.name} (${n.distanceMiles} mi)`).join('; ')
-    ]),
-    {
-      rowFill: (values) => {
-        const count = values[3] as number
-        if (count >= 3) return EXCEL_COLORS.amber3plus
-        if (count === 2) return EXCEL_COLORS.amber2
-        return undefined
-      }
-    }
-  )
-
-  // --- One sheet per facility ---
-  const usedNames = new Set<string>()
-  for (const m of data.members) {
-    const competitors = data.competitorsByMemberId.get(memberId(m)) ?? []
-    const nearbyHospitals = data.hospitalsByMemberId.get(memberId(m)) ?? []
-    let sheetName = m.row.name.replace(/[\\/*?:[\]]/g, ' ').slice(0, 28) || 'Facility'
-    let suffix = 2
-    while (usedNames.has(sheetName.toLowerCase())) {
-      sheetName = `${m.row.name.slice(0, 24)} (${suffix})`
-      suffix += 1
-    }
-    usedNames.add(sheetName.toLowerCase())
-
+  // --- One sheet per cluster ---
+  const usedNames = new Set<string>(['summary', 'clusters', 'standalones'])
+  for (const cluster of clusterResult.clusters) {
+    const sheetName = uniqueSheetName(cluster.name, usedNames)
     const sheet = wb.addWorksheet(sheetName, { views: [{ showGridLines: false }] })
     applyPageSetup(sheet)
-    sheet.columns = [{ width: 38 }, { width: 18 }, { width: 8 }, { width: 13 }, { width: 9 }, { width: 12 }, { width: 9 }]
-    addTitle(sheet, `Near ${m.row.name}`, 7)
-    addSubtitle(sheet, 2, `Within the saved ${m.row.radiusMiles} mi search radius of ${m.row.name}, ${m.row.city}, ${m.row.state}.`, 7)
-
-    let facRow = 4
-    sheet.getCell(facRow, 1).value = 'Competing SNFs'
-    sheet.getCell(facRow, 1).font = { bold: true, size: 12, color: { argb: EXCEL_COLORS.teal } }
-    facRow += 1
-    facRow = addTable(
+    sheet.columns = [{ width: 34 }, { width: 16 }, { width: 8 }, { width: 9 }, { width: 12 }, { width: 9 }]
+    addTitle(sheet, cluster.name, 6)
+    addSubtitle(
       sheet,
-      facRow,
-      ['Name', 'City', 'State', 'Distance (mi)', 'Beds', 'Occupancy', 'Rating'],
-      competitors.map((c) => {
-        const occ = getOccupancyDisplay(c.facility)
-        return [c.facility.name, c.facility.city, c.facility.state, c.distanceMiles, getBedsDisplay(c.facility), occ.text, ratingValue(c.facility.overallRating)]
+      2,
+      `${cluster.members.length} facilit${cluster.members.length === 1 ? 'y' : 'ies'} · ${cluster.totalBeds} total beds${
+        cluster.weightedOccupancy != null ? ` · ${cluster.weightedOccupancy}% avg occupancy` : ''
+      }`,
+      6
+    )
+
+    let r = 4
+    sheet.getCell(r, 1).value = 'Members'
+    sheet.getCell(r, 1).font = { bold: true, size: 12, color: { argb: EXCEL_COLORS.teal } }
+    r += 1
+    r = addTable(
+      sheet,
+      r,
+      ['Name', 'City', 'State', 'Beds', 'Occupancy', 'Rating'],
+      cluster.members.map((m) => {
+        const occ = getOccupancyDisplay(m.facility)
+        return [m.row.name, m.row.city, m.row.state, getBedsDisplay(m.facility), occ.text, ratingValue(m.facility.overallRating)]
       })
     )
 
-    facRow += 1
-    sheet.getCell(facRow, 1).value = 'Hospitals'
-    sheet.getCell(facRow, 1).font = { bold: true, size: 12, color: { argb: EXCEL_COLORS.teal } }
-    facRow += 1
-    addTable(
-      sheet,
-      facRow,
-      ['Name', 'City', 'State', 'Distance (mi)', 'Beds', 'Occupancy', 'Rating'],
-      nearbyHospitals.map((h) => {
-        const occ = getOccupancyDisplay(h.facility)
-        return [h.facility.name, h.facility.city, h.facility.state, h.distanceMiles, getBedsDisplay(h.facility), occ.text, ratingValue(h.facility.overallRating)]
-      })
-    )
+    if (cluster.cannibalizationPairs.length > 0) {
+      sheet.getCell(r, 1).value = 'Cannibalization flags'
+      sheet.getCell(r, 1).font = { bold: true, size: 12, color: { argb: EXCEL_COLORS.teal } }
+      r += 1
+      r = addTable(
+        sheet,
+        r,
+        ['Facility A', 'Facility B', 'Distance (mi)'],
+        cluster.cannibalizationPairs.map((p) => [p.memberA.row.name, p.memberB.row.name, p.miles])
+      )
+    }
+
+    sheet.getCell(r, 1).value = `Market intruders (within ${competitorRadiusMiles} mi)`
+    sheet.getCell(r, 1).font = { bold: true, size: 12, color: { argb: EXCEL_COLORS.teal } }
+    r += 1
+    for (let i = 0; i < MARKET_WIDTHS.length; i++) sheet.getColumn(i + 1).width = Math.max(sheet.getColumn(i + 1).width ?? 0, MARKET_WIDTHS[i].width)
+    r = addTable(sheet, r, MARKET_HEADERS, marketFacilityRows(cluster.intruders))
+
+    sheet.getCell(r, 1).value = `Referral hospitals (within ${competitorRadiusMiles} mi)`
+    sheet.getCell(r, 1).font = { bold: true, size: 12, color: { argb: EXCEL_COLORS.teal } }
+    r += 1
+    addTable(sheet, r, MARKET_HEADERS, marketFacilityRows(cluster.referralHospitals))
   }
 
+  // --- Standalones sheet ---
+  const standalonesSheet = wb.addWorksheet('Standalones', { views: [{ showGridLines: false }] })
+  applyPageSetup(standalonesSheet)
+  standalonesSheet.columns = [{ width: 34 }, { width: 16 }, { width: 8 }, { width: 9 }, { width: 12 }, { width: 9 }, { width: 34 }, { width: 13 }]
+  addTitle(standalonesSheet, 'Standalone facilities', 8)
+  addSubtitle(standalonesSheet, 2, `Portfolio facilities not within ${clusterThresholdMiles} mi of any other portfolio facility.`, 8)
+  addTable(
+    standalonesSheet,
+    4,
+    ['Name', 'City', 'State', 'Beds', 'Occupancy', 'Rating', 'Nearest Portfolio Facility', 'Distance (mi)'],
+    clusterResult.standalones.map((s) => {
+      const occ = getOccupancyDisplay(s.member.facility)
+      return [
+        s.member.row.name,
+        s.member.row.city,
+        s.member.row.state,
+        getBedsDisplay(s.member.facility),
+        occ.text,
+        ratingValue(s.member.facility.overallRating),
+        s.hasLocation ? (s.nearestPortfolioMember?.row.name ?? 'N/A') : 'No location data',
+        s.nearestPortfolioMiles ?? 'N/A'
+      ]
+    })
+  )
+
   return workbookToBlob(wb)
+}
+
+function uniqueSheetName(name: string, used: Set<string>): string {
+  let sheetName = name.replace(/[\\/*?:[\]]/g, ' ').slice(0, 28) || 'Cluster'
+  let suffix = 2
+  while (used.has(sheetName.toLowerCase())) {
+    sheetName = `${name.slice(0, 24)} (${suffix})`
+    suffix += 1
+  }
+  used.add(sheetName.toLowerCase())
+  return sheetName
 }
